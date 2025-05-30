@@ -1,0 +1,88 @@
+datasource db {
+  provider = "postgres"
+  url      = env("DATABASE_URL")
+}
+
+generator db {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+model Customer {
+  customer_id  Int           @id @default(autoincrement())
+  first_name         String  @db.VarChar(50)
+  last_name          String  @db.VarChar(50)
+  email        String        @db.VarChar(50) @unique
+  ownedTrips   TripGroup[]   @relation("CustomerToTripGroup")
+  memberships  GroupMember[] @relation("CustomerToGroupMember")
+}
+
+model TripGroup {
+  trip_id         Int           @id @default(autoincrement())
+  owner_id        Int
+  name_group      String        @db.VarChar(50)
+  description     String        @db.VarChar(300)
+  start_date      DateTime
+  end_date        DateTime
+  
+  owner           Customer      @relation("CustomerToTripGroup", fields: [owner_id], references: [customer_id], onDelete: Cascade)
+  members         GroupMember[] @relation("TripGroupToGroupMember")
+  tripPlans       TripPlan[]
+  budget          Budget?
+}
+
+model GroupMember {
+  group_member_id  Int       @id @default(autoincrement())
+  customer_id      Int
+  trip_id          Int
+  joinAt           DateTime  @default(now())
+  
+  customer         Customer  @relation("CustomerToGroupMember", fields: [customer_id], references: [customer_id], onDelete: Cascade)
+  tripGroup        TripGroup @relation("TripGroupToGroupMember", fields: [trip_id], references: [trip_id], onDelete: Cascade)
+  
+  @@unique([customer_id, trip_id])
+}
+
+model Budget {
+  budget_id     Int        @id @default(autoincrement())
+  trip_id       Int        @unique
+  total_budget  Int
+  
+  tripGroup     TripGroup  @relation(fields: [trip_id], references: [trip_id], onDelete: Cascade)
+  expenses      Expense[]
+}
+
+model Expense {
+  expense_id   Int       @id @default(autoincrement())
+  budget_id    Int
+  category     String    @db.VarChar(50)
+  amount       Int
+  description  String    @db.VarChar(300)
+  create_at    DateTime  @default(now())
+  
+  budget       Budget    @relation(fields: [budget_id], references: [budget_id], onDelete: Cascade)
+}
+
+model TripPlan {
+  plan_id      Int            @id @default(autoincrement())
+  trip_id      Int
+  start_plan_date    DateTime @db.Date
+  end_plan_date      DateTime @db.Date
+  day_of_trip  Int
+  creat_at     DateTime       @default(now()) @db.Timestamp()
+  
+  tripGroup    TripGroup      @relation(fields: [trip_id], references: [trip_id], onDelete: Cascade)
+  schedules    TripSchedule[]
+}
+
+model TripSchedule {
+  schedule_id  Int       @id @default(autoincrement())
+  plan_id      Int
+  time         DateTime  @db.Time
+  activity     String    @db.VarChar(300)
+  description  String    @db.VarChar(300)
+  creat_at     DateTime  @default(now()) @db.Timestamp()
+  
+  tripPlan     TripPlan  @relation(fields: [plan_id], references: [plan_id], onDelete: Cascade)
+}
