@@ -2,6 +2,8 @@ fast api
 psycopg2
 sentensetrajsformer
 ollama
+pip install python-dotenv
+
 
 pip install prisma
 pip install xlrd // pip install pandas // pip install openpyxl //to pandas read xlxs
