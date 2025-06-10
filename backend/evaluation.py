@@ -53,13 +53,15 @@ async def evaluate(request: EvaluationRequest):
             "accuracy": [1-5],
             "rag_alignment": [1-5], 
             "query_relevance": [1-5],
-            "travel_feasibility": [1-5]
+            "travel_feasibility": [1-5],
+            "geolocation_accuracy": [1-5]
         },
         "explanations": {
             "accuracy": "Detailed explanation of accuracy score",
             "rag_alignment": "Explanation of how well response uses reference documents", 
             "query_relevance": "Explanation of how well response addresses the query",
-            "travel_feasibility": "Explanation of practicality for actual travelers"
+            "travel_feasibility": "Explanation of practicality for actual travelers",
+            "geolocation_accuracy": "Explanation of accuracy of geolocation data"
         },
         "overall_assessment": "Brief summary of overall response quality",
         "improvement_suggestions": ["suggestion1", "suggestion2", "..."]
@@ -98,6 +100,14 @@ async def evaluate(request: EvaluationRequest):
         Can travelers actually follow the recommendations provided?
         Are the suggestions logistically possible (timing, transportation, accessibility)?
         Do the recommendations consider practical travel constraints?
+        
+        5. Geolocation Accuracy (1–5)
+
+        How accurate are the geographical references in the response?
+        Are place names correctly matched with their actual locations?
+        Are latitude and longitude coordinates (if provided) correct and aligned with the named locations?
+        Is there consistency between geographic context and actual travel geography (e.g., proximity, regions, countries)?
+        Does the response avoid misplacing landmarks or suggesting routes that are geographically implausible?
 
         Response Format
         Provide your evaluation in the following JSON format: {json_format}
