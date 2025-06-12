@@ -1,8 +1,8 @@
-fast api
-psycopg2
-sentensetrajsformer
-ollama
-pip install python-dotenv
+fast api <br>
+psycopg2 <br>
+sentensetrajsformer <br>
+ollama <br> 
+pip install python-dotenv <br>
 
 
 pip install prisma

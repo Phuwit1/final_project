@@ -96,22 +96,22 @@ async def query_llm(text: Item):
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" }
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
             ]
             },
             {
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" }
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
             ]
             }
         ],
@@ -126,6 +126,9 @@ async def query_llm(text: Item):
         - **A schedule** for each day, containing: 
         - **Time slots** (`HH:mm`, 24-hour format).  
         - **Activities** for each time slot.
+        - **Latitude and longitude** coordinates for each activity (e.g., `"lat": 35.6895`, `"lng": 139.6917`).
+        - **lat** and **lng** are the coordinates of the activity location, which can be found on Google Maps or similar services.
+        - **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel").
         
         - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they’re not blooming. ** here is season data {season_data}.
     
@@ -170,22 +173,22 @@ def query_llm_fix(text: FixRequest):
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" }
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
             ]
             },
             {
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" },
-                { "time": "HH:mm", "activity": "" }
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
+                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
             ]
             }
         ],
@@ -208,6 +211,7 @@ def query_llm_fix(text: FixRequest):
         - REPLACE the activities with new ones that match the user request
         - Include relevant comments about seasonal appropriateness using this data: {season_data}
         (e.g., check if activities match seasonal conditions like cherry blossoms blooming periods)
+        - Latitude and Longitude could match the new activities, or be left empty if not applicable.
 
         DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
 
