@@ -1,9 +1,13 @@
 from typing import Union
 from prisma import Prisma
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, Request
 from pydantic import BaseModel
+import bcrypt
+from jose import jwt, JWTError
+from typing import Annotated
 from datetime import date, datetime, time, timedelta
 # import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -12,10 +16,19 @@ app = FastAPI()
 
 # class for request model
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class Customer(BaseModel):
     first_name: str
     last_name: str
     email: str
+    password: str
     
 class TripGroup(BaseModel):
     owner_id: int
@@ -49,7 +62,25 @@ class TripSchedule(BaseModel):
     time: str
     activity: str
     description: str
-    
+
+class CustomerLogin(BaseModel):
+    email: str
+    password: str
+
+class CustomerOut(BaseModel):
+    email: str
+    token: str
+
+# jwt
+SECRET_KEY = "super-secret"
+ALGORITHM = "HS256"
+
+def create_token(email: str):
+    payload = {
+        "sub": email,
+        "exp": datetime.utcnow() + timedelta(days=7)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 # --- Database Connection ---
@@ -61,7 +92,68 @@ async def get_db():
     finally:
         await db.disconnect()
 
+# Authen
 
+@app.post("/register", response_model=CustomerOut)
+async def register(customer: Customer, db: Prisma = Depends(get_db)):
+    existing = await db.customer.find_unique(where={"email": customer.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed = bcrypt.hashpw(customer.password.encode(), bcrypt.gensalt()).decode()
+    
+    await db.customer.create(
+        data={
+            "first_name": customer.first_name,
+            "last_name": customer.last_name,
+            "email": customer.email,
+            "password": hashed
+        }
+    )
+
+    token = create_token(customer.email)
+    return {"email": customer.email, "token": token}
+
+
+
+@app.post("/login", response_model=CustomerOut)
+async def login(customer: CustomerLogin, db: Prisma = Depends(get_db)):
+    db_customer = await db.customer.find_unique(where={"email": customer.email})
+    if not db_customer:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not bcrypt.checkpw(customer.password.encode(), db_customer.password.encode()):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_token(customer.email)
+    return {"email": customer.email, "token": token}
+
+
+@app.get("/user")
+async def get_me(request: Request, db: Annotated[Prisma, Depends(get_db)]):
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+
+    token = auth.split(" ")[1]
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = await db.customer.find_unique(where={"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+    }
 
 # ================ Customer ================
 
