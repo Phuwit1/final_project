@@ -3,8 +3,12 @@ from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
 import psycopg2
 from sentence_transformers import SentenceTransformer
-import ollama
+from openai import OpenAI
 import json
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 # import uvicorn
 
 # if __name__ == "__main__":
@@ -12,6 +16,7 @@ import json
 
 app = FastAPI()
 embedder = SentenceTransformer("BAAI/bge-m3")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 class Item(BaseModel):
     start_date : str
@@ -69,21 +74,6 @@ def get_season_data():
     }
 
 
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
-
-@app.post("/items/")
-async def create_item(item: Item):
-    return item
-
-
 @app.post("/llm/")
 async def query_llm(text: Item):
     retrieved_docs = query_documents(text.text)
@@ -128,23 +118,27 @@ async def query_llm(text: Item):
         - **Activities** for each time slot.
         - **Latitude and longitude** coordinates for each activity (e.g., `"lat": 35.6895`, `"lng": 139.6917`).
         - **lat** and **lng** are the coordinates of the activity location, which can be found on Google Maps or similar services.
-        - **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel").
+        - *** **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel"). ***
         
-        - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they’re not blooming. ** here is season data {season_data}.
+        - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they're not blooming. ** here is season data {season_data}.
     
 
         Ensure the response **ONLY** contains valid JSON without any explanations or additional text. Use the following context: {context}.
+        *** NO double quotes at the start and end of the JSON response. ***
         *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
         json_structure: {json_structure}
     """
     # ถ้าภาษาไทยเพิ่มด้านบนด้วย ^^^^ ตรง activities + ข้างล่าง json_structure
-    response = ollama.chat(model="gemma3:4b", messages=[
-        {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip."},
-        # {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip to **thai language**."},
-        {"role": "user", "content" : prompt},
-    ])
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip."},
+            # {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip to **thai language**."},
+            {"role": "user", "content" : prompt},
+        ]
+    )
     
-    response_answer = response.get("message", {}).get("content", "No content available")
+    response_answer = response.choices[0].message.content
     response_answer = response_answer.strip().replace("\n", "").replace("```", "")
     if response_answer.startswith('json'):
         response_answer = response_answer[4:]
@@ -214,17 +208,20 @@ def query_llm_fix(text: FixRequest):
         - Latitude and Longitude could match the new activities, or be left empty if not applicable.
 
         DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
-
-        IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary.
+        *** NO double quotes at the start and end of the JSON response. ***
+        **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
     """
     
-    response = ollama.chat(model="gemma3:4b", messages=[
-        {"role": "system", "content": "You are an assistant that helps to refine and improve travel itineraries activity."},
-        # {"role": "system", "content": "You are an assistant that helps to refine travel itineraries in **thai language**."},
-        {"role": "user", "content": prompt},
-    ])
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": "You are an assistant that helps to refine and improve travel itineraries activity."},
+            # {"role": "system", "content": "You are an assistant that helps to refine travel itineraries in **thai language**."},
+            {"role": "user", "content": prompt},
+        ]
+    )
     
-    response_answer = response.get("message", {}).get("content", "No content available")
+    response_answer = response.choices[0].message.content
     response_answer = response_answer.strip().replace("\n", "").replace("```", "")
     if response_answer.startswith('json'):
         response_answer = response_answer[4:]
@@ -236,4 +233,3 @@ def query_llm_fix(text: FixRequest):
     except json.JSONDecodeError as e:
         print(f"Method 1 failed: {e}")
     return data
-
