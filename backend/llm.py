@@ -77,7 +77,7 @@ def get_season_data():
 @app.post("/llm/")
 async def query_llm(text: Item):
     retrieved_docs = query_documents(text.text)
-    context = "\n".join([i[0] for i in retrieved_docs])
+    context = ([i[0] for i in retrieved_docs])
     season_data = get_season_data()
     json_structure = """
     {
@@ -124,6 +124,8 @@ async def query_llm(text: Item):
     
 
         Ensure the response **ONLY** contains valid JSON without any explanations or additional text. Use the following context: {context}.
+        **** Verify that the itinerary aligns with the travel period ({text.start_date}–{text.end_date}) and includes manageable distances and travel times between locations ****
+        
         *** NO double quotes at the start and end of the JSON response. ***
         *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
         json_structure: {json_structure}
