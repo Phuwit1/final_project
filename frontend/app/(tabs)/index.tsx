@@ -56,8 +56,10 @@ export default function Home(){
           
         }  
       >
-       
-          <Text style={{fontSize: 24}}> สถานที่ท่องเที่ยวแนะนำ</Text>
+          <View>
+            <Text style={{fontSize: 24}}> สถานที่ท่องเที่ยวแนะนำ</Text>
+          </View>
+          
           <View style={styles.container}>
             <>
               <InfoCard /> 

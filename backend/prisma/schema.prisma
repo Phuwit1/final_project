@@ -14,9 +14,15 @@ model Customer {
   first_name         String  @db.VarChar(50)
   last_name          String  @db.VarChar(50)
   email        String        @db.VarChar(50) @unique
+  phone_number String?       @db.VarChar(15)
+  birth_date DateTime?
+  
   password  String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  currentToken  String?
+  refreshToken  String?
   ownedTrips   TripGroup[]   @relation("CustomerToTripGroup")
   memberships  GroupMember[] @relation("CustomerToGroupMember")
 }
@@ -24,8 +30,9 @@ model Customer {
 model TripGroup {
   trip_id         Int           @id @default(autoincrement())
   owner_id        Int
-  name_group      String        @db.VarChar(50)
+
   description     String        @db.VarChar(300)
+  uniqueCode String  @unique
   start_date      DateTime
   end_date        DateTime
   
@@ -68,14 +75,16 @@ model Expense {
 }
 
 model TripPlan {
+  name_group      String        @db.VarChar(50)
   plan_id      Int            @id @default(autoincrement())
-  trip_id      Int
+  creator_id   Int    
+  trip_id      Int?
   start_plan_date    DateTime @db.Date
   end_plan_date      DateTime @db.Date
   day_of_trip  Int
   creat_at     DateTime       @default(now()) @db.Timestamp()
   
-  tripGroup    TripGroup      @relation(fields: [trip_id], references: [trip_id], onDelete: Cascade)
+  tripGroup    TripGroup?     @relation(fields: [trip_id], references: [trip_id], onDelete: Cascade)
   schedules    TripSchedule[]
 }
 
