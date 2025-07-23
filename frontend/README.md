@@ -8,6 +8,16 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
    ```bash
    npm install
+   npx expo install @react-native-community/datetimepicker
+   npm install dayjs
+   npm install axios
+   npm install date-fns
+
+
+   npm install @react-native-async-storage/async-storage
+   npm i @react-native-google-signin/google-signin@latest
+   npm install react-native-flash-message
+
    ```
 
 2. Start the app

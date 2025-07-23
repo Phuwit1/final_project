@@ -12,6 +12,8 @@ export default function InfoCard() {
         setExpanded(!expanded);
     };
     
+    const displayText = expanded ? description : `${description.slice(0, 100)}...`;
+
     return (
         <View style={styles.card}>
             <View style={styles.container}>
@@ -22,14 +24,14 @@ export default function InfoCard() {
                 style={styles.infoimage}
             />
 
-            <Text> ชื่อสถานที่ </Text>
-            <Text> { expanded ? description : description.slice(0, 100) +  '...'}</Text>
-             <TouchableOpacity onPress={handleExpand}>
+            <Text style={styles.placeTitle}>ชื่อสถานที่</Text>
+            <Text style={styles.description}>{displayText}</Text>
+                <TouchableOpacity onPress={handleExpand}>
                 <Text style={styles.seeMore}>
-                {expanded ? 'ดูน้อยลง' : 'ดูเพิ่มเติม'}
+                    {expanded ? 'ดูน้อยลง' : 'ดูเพิ่มเติม'}
                 </Text>
+            
             </TouchableOpacity>
-
             </View>
 
                 
@@ -65,4 +67,14 @@ const styles = StyleSheet.create({
         marginTop: 8,
         fontWeight: 'bold',
     },
+    placeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginVertical: 5,
+  },
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginVertical: 5,
+  },
 })

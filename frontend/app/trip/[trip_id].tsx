@@ -63,7 +63,7 @@ export default function Hometrip() {
         console.log("Trip ID:", trip_id );
         if (!token) return;
 
-        const res = await axios.get(`http://192.168.1.45:8000/trip_group/${trip_id}`, {
+        const res = await axios.get(`http://192.168.1.45:8000/trip_plan/${trip_id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
