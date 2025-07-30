@@ -84,6 +84,8 @@ async def route_summarize(text: RouteSummarizeRequest):
         Ensure the response **ONLY** contains valid JSON without any explanations or additional text.
         
         *** NO double quotes at the start and end of the JSON response. ***
+        
+        make the response in English language.
     """
 
     response = client.chat.completions.create(

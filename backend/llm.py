@@ -7,6 +7,7 @@ from openai import OpenAI
 import json
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 
 load_dotenv()
 # import uvicorn
@@ -76,7 +77,15 @@ def get_season_data():
 
 @app.post("/llm/")
 async def query_llm(text: Item):
-    retrieved_docs = query_documents(text.text)
+    date_start_str = text.start_date
+    date_end_str = text.end_date
+    date_start = datetime.strptime(date_start_str, "%d/%m/%Y")
+    date_end = datetime.strptime(date_end_str, "%d/%m/%Y")
+    num_days = (date_end - date_start).days + 1
+    
+    query_txt = f"{num_days} days {text.text}"
+    
+    retrieved_docs = query_documents(query_txt)
     context = ([i[0] for i in retrieved_docs])
     season_data = get_season_data()
     json_structure = """
@@ -129,6 +138,7 @@ async def query_llm(text: Item):
         *** NO double quotes at the start and end of the JSON response. ***
         *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
         json_structure: {json_structure}
+        make the itinerary in English language.
     """
     # ถ้าภาษาไทยเพิ่มด้านบนด้วย ^^^^ ตรง activities + ข้างล่าง json_structure
     response = client.chat.completions.create(
@@ -212,6 +222,7 @@ def query_llm_fix(text: FixRequest):
         DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
         *** NO double quotes at the start and end of the JSON response. ***
         **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
+        make the itinerary in English language.
     """
     
     response = client.chat.completions.create(
