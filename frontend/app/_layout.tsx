@@ -8,6 +8,8 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin"
 import FlashMessage from "react-native-flash-message";
 import 'react-native-reanimated';
 import './globals.css';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; 
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -44,16 +46,20 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(modals)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-        {/* <Stack.Screen name="Login" />
-        <Stack.Screen name="Register" /> */}
-      </Stack>
-      <StatusBar style="auto" />
-      <FlashMessage position="top" />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetModalProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(modals)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" />
+          {/* <Stack.Screen name="Login" />
+          <Stack.Screen name="Register" /> */}
+        </Stack>
+        <StatusBar style="auto" />
+        <FlashMessage position="top" />
+      </ThemeProvider>
+      </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }

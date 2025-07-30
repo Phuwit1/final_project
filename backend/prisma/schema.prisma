@@ -39,7 +39,7 @@ model TripGroup {
   owner           Customer      @relation("CustomerToTripGroup", fields: [owner_id], references: [customer_id], onDelete: Cascade)
   members         GroupMember[] @relation("TripGroupToGroupMember")
   tripPlans       TripPlan[]
-  budget          Budget?
+  budget          Budget?       @relation("TripGroupBudget")
 }
 
 model GroupMember {
@@ -56,13 +56,16 @@ model GroupMember {
 
 model Budget {
   budget_id     Int        @id @default(autoincrement())
-  trip_id       Int        @unique
-  total_budget  Int
+  plan_id       Int?       @unique
+  trip_id       Int?       @unique
+
+  total_budget  Int        @default(0) 
   
-  tripGroup     TripGroup  @relation(fields: [trip_id], references: [trip_id], onDelete: Cascade)
+  tripGroup     TripGroup?  @relation("TripGroupBudget", fields: [trip_id], references: [trip_id], onDelete: Cascade)
+  tripPlan      TripPlan?  @relation("TripPlanBudget", fields: [plan_id], references: [plan_id], onDelete: Cascade)
   expenses      Expense[]
 }
-
+ 
 model Expense {
   expense_id   Int       @id @default(autoincrement())
   budget_id    Int
@@ -86,6 +89,7 @@ model TripPlan {
   
   tripGroup    TripGroup?     @relation(fields: [trip_id], references: [trip_id], onDelete: Cascade)
   schedules    TripSchedule[]
+  budget       Budget?        @relation("TripPlanBudget")
 }
 
 model TripSchedule {

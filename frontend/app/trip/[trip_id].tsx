@@ -1,7 +1,7 @@
 
 import {View, Text, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
-import TripCard from '@/components/ui/trip/cardtrip';
+import TripCardID from '@/components/ui/trip/cardtripId';
 import DailyPlanTabs from '@/components/ui/trip/Dailytrip';
 import { useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
@@ -105,11 +105,11 @@ export default function Hometrip() {
         
                       <View style={styles.overlayContent}>
                         <View style={styles.cardWrapper}>
-                        <TripCard 
+                        <TripCardID
                             name={trip.name_group}
-                            date={formatTripDateRange(trip.start_date, trip.end_date)}
-                            duration={`${getDuration(trip.start_date, trip.end_date)} วัน`}
-                            status={getStatus(trip.start_date, trip.end_date)}
+                            date={formatTripDateRange(trip.start_plan_date, trip.end_plan_date)}
+                            duration={`${getDuration(trip.start_plan_date, trip.end_plan_date)} วัน`}
+                            status={getStatus(trip.start_plan_date, trip.end_plan_date)}
                             people={(trip.members?.length || 0) + 1}
                             // image={require('@/assets/images/home/fuji-view.jpg')}
                            
@@ -123,8 +123,8 @@ export default function Hometrip() {
                 
               >
                  <DailyPlanTabs
-                startDate={trip.start_date}
-                endDate={trip.end_date}
+                startDate={trip.start_plan_date}
+                endDate={trip.end_plan_date}
                 plans={[
                   'เที่ยววัด Asakusa, กินราเมน',
                   'ไป DisneySea, ช็อปปิ้ง Shibuya',

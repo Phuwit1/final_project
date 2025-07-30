@@ -47,7 +47,8 @@ class GroupMember(BaseModel):
     trip_id: int
 
 class Budget(BaseModel):
-    trip_id: int
+    trip_id: Optional[int] = None
+    plan_id: Optional[int] = None
     total_budget: float
 
 class Expense(BaseModel):
@@ -698,7 +699,7 @@ async def read_trip_plan(db: Prisma = Depends(get_db), current_user = Depends(ge
         print("current_user_id:", current_user.customer_id)
 
         trip_plan = await db.tripplan.find_many(
-             where={"creator_id": current_user.customer_id},
+            where={"creator_id": current_user.customer_id},
             include={
                 "schedules": True,
             }
@@ -749,7 +750,18 @@ async def create_trip_plan(trip_plan: TripPlan, db: Prisma = Depends(get_db), cu
         trip_plans = await db.tripplan.create(
             data=trip_plan
         )
+
+        await db.budget.create(
+            data={
+                "plan_id": trip_plans.plan_id,
+                "total_budget": 0
+            }
+        )
+
         return trip_plans
+    
+    
+
     
     except Exception as e:
         print("🔥 Validation Error:", e)

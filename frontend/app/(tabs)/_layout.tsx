@@ -2,6 +2,7 @@ import { Link, Tabs } from 'expo-router';
 import React, { useState } from 'react';
 import { Platform } from 'react-native';
 import { View, TouchableOpacity, Text, StyleSheet, Animated } from 'react-native';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -17,6 +18,7 @@ export default function TabLayout() {
 
   return (
     <>
+    <BottomSheetModalProvider>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
@@ -106,7 +108,7 @@ export default function TabLayout() {
           <Text style={styles.fabIcon}>{open ? '×' : '+'}</Text>
         </TouchableOpacity>
       </View>
-
+    </BottomSheetModalProvider>
 
     </>
   );
