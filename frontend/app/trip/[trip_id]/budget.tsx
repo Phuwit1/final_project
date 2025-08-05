@@ -14,22 +14,17 @@ const categories: { name: string; icon: React.ComponentProps<typeof FontAwesome>
   { name: 'ที่พัก', icon: 'bed' },
 ];
 
-const dummyExpenses = [
-  {
-    id: '1',
-    category: 'ค่าอาหาร',
-    creator: 'Kinny',
-    amount: 2000,
-    icon: 'restaurant',
-  },
-];
+interface Expense {
+  expense_id: number;
+  category: string;
+  description: string;
+  amount: number;
+}
+
 
 export default function TripBudgetScreen() {
   const { trip_id } = useLocalSearchParams();
-  const tripName = 'เที่ยวไหนก็เที่ยว';
-  const totalBudget = 5000;
-  const spent = 2000;
-  
+
   // Modal states
   const [isModalVisible, setModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(0)).current;
@@ -46,6 +41,14 @@ export default function TripBudgetScreen() {
 
   const [trip, setTrip] = useState<any>(null);
   const [budget, setBudget] = useState<any>(null);
+
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const totalSpent = expenses.reduce((sum, item) => sum + (item.amount || 0), 0);
+  //expense edit
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
+
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,7 +71,8 @@ export default function TripBudgetScreen() {
 
         setTrip(tripRes.data);
         setBudget(budgetRes.data);
-        console.log('Fetched Budget:', budgetRes.data);
+        setExpenses(budgetRes.data?.expenses || []);
+
       } catch (error) {
         console.error('Error fetching trip:', error);
       } finally {
@@ -97,6 +101,25 @@ const closeEditBudgetModal = () => {
   }).start(() => {
     setEditBudgetModalVisible(false);
   });
+};
+
+
+  const openEditExpenseModal = (expense: Expense) => {
+    setIsEditing(true);
+    setEditingExpenseId(expense.expense_id); // หรือ id field ของ expense
+    setAmount(expense.amount.toString());
+    setDescription(expense.description);
+    setSelectedCategory(expense.category);
+    setModalVisible(true);
+  };
+
+  const openAddExpenseModal = () => {
+    setIsEditing(false);
+    setEditingExpenseId(null);
+    setAmount('');
+    setDescription('');
+    setSelectedCategory(null);
+    setModalVisible(true);
 };
 
   const openModal = () => {
@@ -147,19 +170,36 @@ const handleSave = async () => {
     const token = await AsyncStorage.getItem('access_token');
     if (!token || !trip?.budget?.budget_id) return;
 
-    await axios.post(
-      `http://192.168.1.45:8000/expense`,
-      {
-        budget_id: trip.budget.budget_id,
-        category: selectedCategory,
-        description,
-        amount: parseInt(amount, 10),
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+     const data = {
+      budget_id: trip.budget.budget_id,
+      category: selectedCategory,
+      description,
+      amount: parseInt(amount, 10),
+    };
 
-    // refresh trip ข้อมูลใหม่
-    fetchTrip();
+    if (isEditing && editingExpenseId) {
+      // แก้ไข expense
+      await axios.put(
+        `http://192.168.1.45:8000/expense/${editingExpenseId}`,
+        data,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } else {
+      // เพิ่ม expense ใหม่
+      await axios.post(
+        `http://192.168.1.45:8000/expense`,
+        data,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
+  }
+
+    // setExpenses(prev => [...prev, expenses.data]);
+
+    // รีเซ็ตฟอร์ม
+    setAmount('');
+    setDescription('');
+    setSelectedCategory(null);
+
     closeModal();
   } catch (error) {
     console.error("Error adding expense:", error);
@@ -191,6 +231,11 @@ const handleSave = async () => {
     } catch (error) {
       console.error('Error updating budget:', error);
     }
+  };
+
+  const getCategoryIcon = (categoryName: string) => {
+    const found = categories.find(cat => cat.name === categoryName);
+    return found ? found.icon : 'question-circle'; // ถ้าไม่เจอใช้ icon question-circle
   };
 
   return (
@@ -248,7 +293,7 @@ const handleSave = async () => {
 
       <View style={styles.semiCircleWrapper}>
         <View style={styles.semiCircle}>
-          <Text style={styles.spentText}>ใช้ 2000 THB</Text>
+          <Text style={styles.spentText}>ใช้ {totalSpent} THB</Text>
         </View>
       </View>
 
@@ -256,19 +301,26 @@ const handleSave = async () => {
         <Text style={styles.sectionTitle}>ค่าใช้จ่าย</Text>
 
         <FlatList
-          data={dummyExpenses}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.expenseItem}>
-              <Ionicons name={item.icon as any} size={24} style={styles.expenseIcon} />
-              <View style={styles.expenseDetail}>
-                <Text style={styles.expenseCategory}>{item.category}</Text>
-                <Text style={styles.expenseCreator}>create by {item.creator}</Text>
+            data={expenses}
+            keyExtractor={(item) => item.expense_id.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.expenseItem}>
+                <FontAwesome
+                    name={getCategoryIcon(item.category)}
+                    size={24}
+                    style={styles.expenseIcon}
+                  />
+                <View style={styles.expenseDetail}>
+                  <Text style={styles.expenseCategory}>{item.category}</Text>
+                  <Text style={styles.expenseCreator}>
+                    {item.description || "No description"}
+                  </Text>
+                  <Text style={styles.expenseCreator}>create by Kin</Text>
+                </View>
+                <Text style={styles.expenseAmount}>{item.amount} THB</Text>
               </View>
-              <Text style={styles.expenseAmount}>{item.amount} THB</Text>
-            </View>
-          )}
-        />
+            )}
+          />
 
         <TouchableOpacity style={styles.addButton} onPress={openModal}>
           <Text style={styles.addButtonText}>+ เพิ่มค่าใช้จ่าย</Text>
