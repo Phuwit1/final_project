@@ -2,8 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, FlatList, TextInput, Modal, Animated } from 'react-native';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const categories: { name: string; icon: React.ComponentProps<typeof FontAwesome>['name'] }[] = [
   { name: 'อาหาร', icon: 'cutlery' },
@@ -36,13 +38,73 @@ export default function TripBudgetScreen() {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  //budeget edit
+  const [editBudgetAmount, setEditBudgetAmount] = useState('');
+  const [isEditBudgetModalVisible, setEditBudgetModalVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(300)).current; 
+  
+
+  const [trip, setTrip] = useState<any>(null);
+  const [budget, setBudget] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTrip = async () => {
+      if (!trip_id) return;
+
+      setLoading(true);
+      try {
+        const token = await AsyncStorage.getItem('access_token');
+        if (!token) return;
+
+        const [tripRes, budgetRes] = await Promise.all([
+          axios.get(`http://192.168.1.45:8000/trip_plan/${trip_id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`http://192.168.1.45:8000/budget/plan/${trip_id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        setTrip(tripRes.data);
+        setBudget(budgetRes.data);
+        console.log('Fetched Budget:', budgetRes.data);
+      } catch (error) {
+        console.error('Error fetching trip:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrip();
+  }, [trip_id]);
+
+  const openEditBudgetModal = () => {
+  setEditBudgetAmount(String(budget));
+  setEditBudgetModalVisible(true);
+  Animated.timing(slideAnim, {
+    toValue: 0,
+    duration: 250,
+    useNativeDriver: true,
+  }).start();
+};
+
+const closeEditBudgetModal = () => {
+  Animated.timing(slideAnim, {
+    toValue: 300,
+    duration: 200,
+    useNativeDriver: true,
+  }).start(() => {
+    setEditBudgetModalVisible(false);
+  });
+};
 
   const openModal = () => {
     console.log('📌 เปิด Modal');
     setModalVisible(true);
-    // รีเซ็ต animation
     translateY.setValue(0);
   };
+
 
   const closeModal = () => {
     console.log('📌 ปิด Modal');
@@ -79,14 +141,56 @@ export default function TripBudgetScreen() {
     }
   };
 
-  const handleSave = () => {
-    console.log('💾 บันทึก:', { amount, description, selectedCategory });
-    // รีเซ็ตฟอร์ม
-    setAmount('');
-    setDescription('');
-    setSelectedCategory(null);
-    // ปิด Modal
+//Add expense handler
+const handleSave = async () => {
+  try {
+    const token = await AsyncStorage.getItem('access_token');
+    if (!token || !trip?.budget?.budget_id) return;
+
+    await axios.post(
+      `http://192.168.1.45:8000/expense`,
+      {
+        budget_id: trip.budget.budget_id,
+        category: selectedCategory,
+        description,
+        amount: parseInt(amount, 10),
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // refresh trip ข้อมูลใหม่
+    fetchTrip();
     closeModal();
+  } catch (error) {
+    console.error("Error adding expense:", error);
+  }
+};
+
+   const handleSaveBudget = async () => {
+  
+    const budgetId = budget.budget_id;
+
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) return;
+
+      await axios.put(
+        `http://192.168.1.45:8000/budget/${budgetId}`,
+        { total_budget: parseInt(editBudgetAmount, 10),
+          plan_id : trip_id
+         },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+       setBudget((prev: any) => ({
+        ...prev,
+        total_budget: Number(editBudgetAmount)
+      }));
+
+      closeEditBudgetModal();
+    } catch (error) {
+      console.error('Error updating budget:', error);
+    }
   };
 
   return (
@@ -95,15 +199,51 @@ export default function TripBudgetScreen() {
         source={{ uri: 'https://picsum.photos/800/600' }}
         style={styles.headerImage}
       >
-        <Text style={styles.tripName}>เที่ยวไหนก็เที่ยว</Text>
+        <Text style={styles.tripName}>{trip ? trip.name_group : 'กำลังโหลด...'}</Text>
 
         <View style={styles.budgetRow}>
           <Text style={styles.budgetText}>งบ</Text>
-          <Text style={styles.budgetAmount}> 5000 THB </Text>
-          <TouchableOpacity>
-            <Ionicons name="create-outline" size={20} color="white" />
+          <Text style={styles.budgetAmount}> {budget ? budget.total_budget : 'กำลังโหลด...'} THB </Text>
+          <TouchableOpacity onPress={openEditBudgetModal}>
+            <Ionicons name="create-outline" size={20} color="black" />
           </TouchableOpacity>
         </View>
+
+         <Modal
+            visible={isEditBudgetModalVisible}
+            transparent
+            animationType="none" // ปิด animation default
+            onRequestClose={closeEditBudgetModal}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlayBudget}
+              activeOpacity={1}
+              onPress={closeEditBudgetModal}
+            >
+              <Animated.View
+                style={[
+                  styles.bottomSheetBudget,
+                  { transform: [{ translateY: slideAnim }] },
+                ]}
+              >
+                <Text style={styles.modalTitleBudget}>แก้ไขงบประมาณ</Text>
+                <TextInput
+                  keyboardType="numeric"
+                  style={styles.inputBudget}
+                  value={budget ? budget.total_budget : '0'}
+                  onChangeText={setEditBudgetAmount}
+                />
+                <View style={styles.modalButtonsBudget}>
+                  <TouchableOpacity onPress={closeEditBudgetModal} style={styles.cancelButtonBudget}>
+                    <Text style={styles.cancelButtonText}>ยกเลิก</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleSaveBudget} style={styles.saveButtonBudget}>
+                    <Text style={styles.saveButtonText}>บันทึก</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            </TouchableOpacity>
+          </Modal>
       </ImageBackground>
 
       <View style={styles.semiCircleWrapper}>
@@ -330,7 +470,66 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
   },
+
+ modalOverlayBudget: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.4)',
+  justifyContent: 'flex-end',
+},
+bottomSheetBudget: {
+  backgroundColor: 'white',
+  padding: 20,
+  borderTopLeftRadius: 16,
+  borderTopRightRadius: 16,
+  minHeight: 200,
+},
+modalTitleBudget: {
+  fontSize: 18,
+  fontWeight: 'bold',
+  marginBottom: 12,
+},
+inputBudget: {
+  borderWidth: 1,
+  borderColor: '#ccc',
+  borderRadius: 8,
+  padding: 10,
+  fontSize: 16,
+  marginBottom: 16,
+},
+modalButtonsBudget: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+},
+cancelButtonBudget: {
+  backgroundColor: '#ddd',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    flex: 0.45,
+    alignItems: 'center',
+},
+saveButtonBudget: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    flex: 0.45,
+    alignItems: 'center',
+},
+
+
+
   // Modal Styles
+  modalContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+  },
+   modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

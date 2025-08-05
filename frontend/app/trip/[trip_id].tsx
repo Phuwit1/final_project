@@ -4,11 +4,14 @@ import ParallaxScrollView from '@/components/ParallaxScrollView';
 import TripCardID from '@/components/ui/trip/cardtripId';
 import DailyPlanTabs from '@/components/ui/trip/Dailytrip';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
+import { useFocusEffect } from '@react-navigation/native';
+
+
 
 dayjs.locale('th');
 
@@ -56,31 +59,33 @@ export default function Hometrip() {
     const [trip, setTrip] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-    const fetchTrip = async () => {
-      try {
-        const token = await AsyncStorage.getItem('access_token');
-        console.log("Trip ID:", trip_id );
-        if (!token) return;
+    useFocusEffect(
+      useCallback(() => {
+        const fetchTrip = async () => {
+          try {
+            const token = await AsyncStorage.getItem('access_token');
+            console.log("Trip ID:", trip_id );
+            if (!token) return;
 
-        const res = await axios.get(`http://192.168.1.45:8000/trip_plan/${trip_id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+            const res = await axios.get(`http://192.168.1.45:8000/trip_plan/${trip_id}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
 
-        console.log("Fetched trip:", res.data);
-        
-        setTrip(res.data);
-      } catch (err) {
-        console.error('Error fetching trip:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+            console.log("Fetched trip:", res.data);
+            
+            setTrip(res.data);
+          } catch (err) {
+            console.error('Error fetching trip:', err);
+          } finally {
+            setLoading(false);
+          }
+        };
 
-    if (trip_id) {
-      fetchTrip();
-    }
-  }, [trip_id]);
+        if (trip_id) {
+          fetchTrip();
+        }
+      }, [trip_id])
+    );
 
     if (loading) {
         return <ActivityIndicator style={{ marginTop: 100 }} />;
@@ -111,8 +116,9 @@ export default function Hometrip() {
                             duration={`${getDuration(trip.start_plan_date, trip.end_plan_date)} วัน`}
                             status={getStatus(trip.start_plan_date, trip.end_plan_date)}
                             people={(trip.members?.length || 0) + 1}
+                            tripId={trip.plan_id}
+                            budget={trip.budget?.total_budget}
                             // image={require('@/assets/images/home/fuji-view.jpg')}
-                           
                             />
                             </View>
 

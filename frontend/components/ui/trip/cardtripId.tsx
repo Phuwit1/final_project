@@ -26,6 +26,7 @@ const TripCardID: React.FC<TripCardProps> = ({
 }) => {
     const navigation = useNavigation<any>();
     const router = useRouter();
+    console.log('tripId from props:', tripId);
     const goToBudget = () => {
     router.push(`/trip/${tripId}/budget`); // ให้คุณตั้งชื่อหน้านี้ไว้ใน navigation
   };
