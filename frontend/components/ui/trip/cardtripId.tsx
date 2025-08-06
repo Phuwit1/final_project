@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 
 interface TripCardProps {
   name: string;
@@ -14,28 +15,46 @@ interface TripCardProps {
   tripId?: string; // สำหรับส่ง id ไปหน้า budget ถ้าต้องใช้
 }
 
-const TripCardID: React.FC<TripCardProps> = ({
-  name,
-  date,
-  duration,
-  status,
-  people,
-  image,
-  budget = 0,
-  tripId,
-}) => {
+const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, tripId,}) => {
     const navigation = useNavigation<any>();
     const router = useRouter();
     console.log('tripId from props:', tripId);
+    const [isPressed, setIsPressed] = useState(false);
+
+
     const goToBudget = () => {
-    router.push(`/trip/${tripId}/budget`); // ให้คุณตั้งชื่อหน้านี้ไว้ใน navigation
+      router.push(`/trip/${tripId}/budget`); // ให้คุณตั้งชื่อหน้านี้ไว้ใน navigation
+    };
+
+    const handleCreateGroup = () => {
+    console.log('สร้างกลุ่มสำหรับ Trip ID:', tripId);
+    // เรียก API หรือไปหน้า Create Group ได้เลย
   };
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.tripName}>{name}</Text>
-        <Text style={styles.status}>{status}</Text>
+         <TouchableOpacity
+            style={[
+              styles.createGroupButton,
+              isPressed && styles.createGroupButtonPressed,
+            ]}
+            onPressIn={() => setIsPressed(true)}
+            onPressOut={() => {
+              setIsPressed(false);
+              handleCreateGroup();
+            }}
+          >
+            <Text
+              style={[
+                styles.createGroupText,
+                isPressed && styles.createGroupTextPressed,
+              ]}
+            >
+              + สร้างกลุ่ม
+            </Text>
+          </TouchableOpacity>
       </View>
 
       <View style={styles.imageRow}>
@@ -50,7 +69,10 @@ const TripCardID: React.FC<TripCardProps> = ({
                 <Text style={styles.budgetText}>✏️</Text>
             </TouchableOpacity>
             </View>
+
+           
         </View>
+        
       </View>
     </View>
   );
@@ -111,6 +133,23 @@ budgetButton: {
   budgetText: {
     fontSize: 14,
     color: '#333',
+  },
+    createGroupButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  createGroupButtonPressed: {
+    backgroundColor: '#e0e0e0',
+  },
+  createGroupText: {
+    fontSize: 14,
+    color: '#FFA500',
+    fontWeight: '500',
+  },
+  createGroupTextPressed: {
+    color: '#cc8400',
   },
 });
 

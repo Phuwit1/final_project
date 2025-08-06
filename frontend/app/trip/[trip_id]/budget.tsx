@@ -113,25 +113,25 @@ const closeEditBudgetModal = () => {
     setModalVisible(true);
   };
 
-  const openAddExpenseModal = () => {
-    setIsEditing(false);
-    setEditingExpenseId(null);
-    setAmount('');
-    setDescription('');
-    setSelectedCategory(null);
-    setModalVisible(true);
-};
+//   const openAddExpenseModal = () => {
+//     setIsEditing(false);
+//     setEditingExpenseId(null);
+//     setAmount('');
+//     setDescription('');
+//     setSelectedCategory(null);
+//     setModalVisible(true);
+// };
 
   const openModal = () => {
-    console.log('📌 เปิด Modal');
+    
     setModalVisible(true);
     translateY.setValue(0);
   };
 
 
   const closeModal = () => {
-    console.log('📌 ปิด Modal');
-    // Animation ปิด
+    
+   
     Animated.timing(translateY, {
       toValue: 300,
       duration: 250,
@@ -177,28 +177,46 @@ const handleSave = async () => {
       amount: parseInt(amount, 10),
     };
 
+    
+
     if (isEditing && editingExpenseId) {
       // แก้ไข expense
       await axios.put(
         `http://192.168.1.45:8000/expense/${editingExpenseId}`,
         data,
         { headers: { Authorization: `Bearer ${token}` } }
+      ); 
+      setExpenses(prev => 
+        prev.map(expense => 
+          expense.expense_id === editingExpenseId 
+            ? { 
+                ...expense, 
+                ...data, 
+                amount: parseInt(amount, 10), 
+                category: (data.category ?? expense.category) as string
+              }
+            : expense
+        )
       );
     } else {
       // เพิ่ม expense ใหม่
-      await axios.post(
+      const response = await axios.post(
         `http://192.168.1.45:8000/expense`,
         data,
         { headers: { Authorization: `Bearer ${token}` } }
     );
+    setExpenses(prev => [...prev, response.data]);
   }
 
     // setExpenses(prev => [...prev, expenses.data]);
 
     // รีเซ็ตฟอร์ม
+    setModalVisible(false);
     setAmount('');
     setDescription('');
     setSelectedCategory(null);
+    setEditingExpenseId(null);
+    setIsEditing(false);
 
     closeModal();
   } catch (error) {
@@ -304,21 +322,23 @@ const handleSave = async () => {
             data={expenses}
             keyExtractor={(item) => item.expense_id.toString()}
             renderItem={({ item }) => (
-              <View style={styles.expenseItem}>
-                <FontAwesome
-                    name={getCategoryIcon(item.category)}
-                    size={24}
-                    style={styles.expenseIcon}
-                  />
-                <View style={styles.expenseDetail}>
-                  <Text style={styles.expenseCategory}>{item.category}</Text>
-                  <Text style={styles.expenseCreator}>
-                    {item.description || "No description"}
-                  </Text>
-                  <Text style={styles.expenseCreator}>create by Kin</Text>
+              <TouchableOpacity onPress={() => openEditExpenseModal(item)}>
+                <View style={styles.expenseItem}>
+                  <FontAwesome
+                      name={getCategoryIcon(item.category)}
+                      size={24}
+                      style={styles.expenseIcon}
+                    />
+                  <View style={styles.expenseDetail}>
+                    <Text style={styles.expenseCategory}>{item.category}</Text>
+                    <Text style={styles.expenseCreator}>
+                      {item.description || "No description"}
+                    </Text>
+                    <Text style={styles.expenseCreator}>create by Kin</Text>
+                  </View>
+                  <Text style={styles.expenseAmount}>{item.amount} THB</Text>
                 </View>
-                <Text style={styles.expenseAmount}>{item.amount} THB</Text>
-              </View>
+              </TouchableOpacity>
             )}
           />
 
