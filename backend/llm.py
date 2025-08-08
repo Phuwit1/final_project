@@ -147,7 +147,10 @@ async def query_llm(text: Item):
             {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip."},
             # {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip to **thai language**."},
             {"role": "user", "content" : prompt},
-        ]
+        ],
+        # reasoning={
+        #     "effort": "minimal"
+        # }
     )
     
     response_answer = response.choices[0].message.content
