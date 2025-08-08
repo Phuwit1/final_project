@@ -51,11 +51,14 @@ class Budget(BaseModel):
     plan_id: Optional[int] = None
     total_budget: float
 
+class BudgetUpdate(BaseModel):
+    total_budget: int
+
 class Expense(BaseModel):
     budget_id: int
     category: str
     amount: float
-    description: str
+    description: Optional[str] = ""
 
 class TripPlan(BaseModel):
     name_group: str
@@ -568,11 +571,11 @@ async def read_budget(db: Prisma = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
-@app.get("/budget/{budget_id}")
-async def read_budget_by_id(budget_id: int, db: Prisma = Depends(get_db)):
+@app.get("/budget/plan/{plan_id}")
+async def read_budget_by_id(plan_id: int, db: Prisma = Depends(get_db)):
     try:
         budget = await db.budget.find_unique(
-            where={"budget_id": budget_id},
+            where={"plan_id": plan_id},
             include={
                 "expenses": True
             }
@@ -608,15 +611,13 @@ async def create_budget(budget: Budget, db: Prisma = Depends(get_db)):
         return {"error": str(e)}
 
 @app.put("/budget/{budget_id}")
-async def update_budget(budget_id: int, budget: Budget, db: Prisma = Depends(get_db)):
+async def update_budget(budget_id: int, budget: BudgetUpdate, db: Prisma = Depends(get_db)):
     try: 
-        budget = budget.model_dump()
         budgets = await db.budget.update(
             where={"budget_id": budget_id},
-            data=budget
+            data=budget.model_dump()
         )
         return budgets
-    
     except Exception as e:
         return {"error": str(e)}
     
@@ -718,6 +719,7 @@ async def read_trip_plan_by_id(plan_id: int, db: Prisma = Depends(get_db)):
             where={"plan_id": plan_id},
             include={
                 "schedules": True,
+                "budget": True 
             }
         )
         return trip_plan
@@ -748,21 +750,24 @@ async def create_trip_plan(trip_plan: TripPlan, db: Prisma = Depends(get_db), cu
         trip_plan["day_of_trip"] = (trip_plan["end_plan_date"] - trip_plan["start_plan_date"]).days + 1
         
         trip_plans = await db.tripplan.create(
-            data=trip_plan
-        )
-
-        await db.budget.create(
             data={
-                "plan_id": trip_plans.plan_id,
-                "total_budget": 0
+                **trip_plan,
+                "budget": {
+                    "create": {
+                        "total_budget": 0
+                    }
+                }
+            },
+            include={
+                "schedules": True,
+                "budget": True
             }
         )
+        
+        return trip_plans
 
         return trip_plans
-    
-    
 
-    
     except Exception as e:
         print("🔥 Validation Error:", e)
         return {"error": str(e)}

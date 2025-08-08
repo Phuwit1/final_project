@@ -64,6 +64,7 @@ const CreateTripScreen = () => {
         Authorization: `Bearer ${token}`,
       },
     });
+    
 
     // Alert.alert('สร้างทริปสำเร็จ', `รหัสกลุ่ม: ${res.data.uniqueCode}`);
     router.push('/(tabs)/profile'); 
