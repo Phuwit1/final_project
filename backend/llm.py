@@ -22,14 +22,18 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 class Item(BaseModel):
     start_date : str
     end_date : str
+    cities: list
     text: str
 
 class FixRequest(BaseModel):
     text: str
+    start_date : str
+    end_date : str
+    cities: list
     itinerary_data: Dict[str, Any]
 
     
-def query_documents(query_text, k=3):
+def query_documents(num_days, months, cities, query_text, k=3):
     conn = psycopg2.connect(
         host="localhost",
         database="LLM",
@@ -43,14 +47,18 @@ def query_documents(query_text, k=3):
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
+        WHERE cities @> %s AND months @> %s AND duration_days = %s
         ORDER BY similarity_score ASC
         LIMIT %s
     """
-    cur.execute(query, (query_embedding_str, k))
+    # where @> or && dont know use @> or &&
+
+    cur.execute(query, (query_embedding_str, cities, months, num_days, k))
     results = cur.fetchall()
     cur.close()
     conn.close()
-    print("Query results:", results)
+    output = "\n".join([str(i) for i in results])
+    print("Query results:", output)
     return results
 
 # ข้อมูลสภาพอากาศในญี่ปุ่น
@@ -83,9 +91,22 @@ async def query_llm(text: Item):
     date_end = datetime.strptime(date_end_str, "%d/%m/%Y")
     num_days = (date_end - date_start).days + 1
     
-    query_txt = f"{num_days} days {text.text}"
-    
-    retrieved_docs = query_documents(query_txt)
+    query_txt = f"{text.text}"
+    months = []
+    # Iterate over each month in the date range
+    current = date_start
+    while current <= date_end:
+        month_name = current.strftime('%B')  # Full month name (e.g., March)
+        if month_name not in months:  # Avoid duplicates
+            months.append(month_name)
+        # Move to next month
+        if current.month == 12:
+            current = datetime(current.year + 1, 1, 1)
+        else:
+            current = datetime(current.year, current.month + 1, 1)
+
+    # print(months)
+    retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
     context = ([i[0] for i in retrieved_docs])
     season_data = get_season_data()
     json_structure = """
@@ -169,7 +190,30 @@ async def query_llm(text: Item):
 
 @app.post("/llm/fix/")
 def query_llm_fix(text: FixRequest):
-    retrieved_docs = query_documents(text.text)
+    
+    date_start_str = text.start_date
+    date_end_str = text.end_date
+    date_start = datetime.strptime(date_start_str, "%d/%m/%Y")
+    date_end = datetime.strptime(date_end_str, "%d/%m/%Y")
+    num_days = (date_end - date_start).days + 1
+    
+    query_txt = f"{text.text}"
+    months = []
+    # Iterate over each month in the date range
+    current = date_start
+    while current <= date_end:
+        month_name = current.strftime('%B')  # Full month name (e.g., March)
+        if month_name not in months:  # Avoid duplicates
+            months.append(month_name)
+        # Move to next month
+        if current.month == 12:
+            current = datetime(current.year + 1, 1, 1)
+        else:
+            current = datetime(current.year, current.month + 1, 1)
+
+    # print(months)
+    retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
+
     context = "\n".join([i[0] for i in retrieved_docs])
     season_data = get_season_data()
     # Convert itinerary_data to a JSON string for the prompt
