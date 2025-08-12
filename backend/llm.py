@@ -107,7 +107,6 @@ async def query_llm(text: Item):
 
     # print(months)
     retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
-    context = ([i[0] for i in retrieved_docs])
     season_data = get_season_data()
     json_structure = """
     {
@@ -138,30 +137,57 @@ async def query_llm(text: Item):
         "comments": "comments or additional notes about the itinerary"
     }
     """
-    prompt = f"""Generate a detailed travel itinerary in JSON format. 
+    if len(retrieved_docs) <= 0:
+        prompt = f"""Generate a detailed travel itinerary in JSON format. 
+            
+            The itinerary must include:  
+            - **Multiple days** with specific dates (`YYYY-MM-DD`).  
+            - **Day labels** (e.g., `"Day 1"`, `"Day 2"`).  
+            - **A schedule** for each day, containing: 
+            - **Time slots** (`HH:mm`, 24-hour format).  
+            - **Activities** for each time slot.
+            - **Latitude and longitude** coordinates for each activity (e.g., `"lat": 35.6895`, `"lng": 139.6917`).
+            - **lat** and **lng** are the coordinates of the activity location, which can be found on Google Maps or similar services.
+            - *** **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel"). ***
+            
+            - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they're not blooming. ** here is season data {season_data}.
         
-        The itinerary must include:  
-        - **Multiple days** with specific dates (`YYYY-MM-DD`).  
-        - **Day labels** (e.g., `"Day 1"`, `"Day 2"`).  
-        - **A schedule** for each day, containing: 
-        - **Time slots** (`HH:mm`, 24-hour format).  
-        - **Activities** for each time slot.
-        - **Latitude and longitude** coordinates for each activity (e.g., `"lat": 35.6895`, `"lng": 139.6917`).
-        - **lat** and **lng** are the coordinates of the activity location, which can be found on Google Maps or similar services.
-        - *** **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel"). ***
-        
-        - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they're not blooming. ** here is season data {season_data}.
-    
+            Ensure the response contains **only** valid JSON with no explanations or extra text. Create an itinerary based on {text.cities} and {text.text}. If {text.cities} and {text.text} are not realistically possible due to distance, time, or season, adjust them as needed to make the itinerary feasible.
+            **** Verify that the itinerary aligns with the travel period ({text.start_date}–{text.end_date}) and includes manageable distances and travel times between locations ****
+            
+            *** NO double quotes at the start and end of the JSON response. ***
+            *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
+            json_structure: {json_structure}
+            make the itinerary in English language.
+        """
 
-        Ensure the response **ONLY** contains valid JSON without any explanations or additional text. Use the following context: {context}.
-        **** Verify that the itinerary aligns with the travel period ({text.start_date}–{text.end_date}) and includes manageable distances and travel times between locations ****
+    else:
+        context = ([i[0] for i in retrieved_docs])
+        prompt = f"""Generate a detailed travel itinerary in JSON format. 
+            
+            The itinerary must include:  
+            - **Multiple days** with specific dates (`YYYY-MM-DD`).  
+            - **Day labels** (e.g., `"Day 1"`, `"Day 2"`).  
+            - **A schedule** for each day, containing: 
+            - **Time slots** (`HH:mm`, 24-hour format).  
+            - **Activities** for each time slot.
+            - **Latitude and longitude** coordinates for each activity (e.g., `"lat": 35.6895`, `"lng": 139.6917`).
+            - **lat** and **lng** are the coordinates of the activity location, which can be found on Google Maps or similar services.
+            - *** **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel"). ***
+            
+            - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they're not blooming. ** here is season data {season_data}.
         
-        *** NO double quotes at the start and end of the JSON response. ***
-        *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
-        json_structure: {json_structure}
-        make the itinerary in English language.
-    """
-    # ถ้าภาษาไทยเพิ่มด้านบนด้วย ^^^^ ตรง activities + ข้างล่าง json_structure
+
+            Ensure the response **ONLY** contains valid JSON without any explanations or additional text. *** Use the following context: {context}. ***
+            **** Verify that the itinerary aligns with the travel period ({text.start_date}–{text.end_date}) and includes manageable distances and travel times between locations ****
+            
+            *** NO double quotes at the start and end of the JSON response. ***
+            *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
+            json_structure: {json_structure}
+            make the itinerary in English language.
+        """
+
+        # ถ้าภาษาไทยเพิ่มด้านบนด้วย ^^^^ ตรง activities + ข้างล่าง json_structure
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
@@ -178,7 +204,6 @@ async def query_llm(text: Item):
     response_answer = response_answer.strip().replace("\n", "").replace("```", "")
     if response_answer.startswith('json'):
         response_answer = response_answer[4:]
-    # return response_answer
     try:
         data = json.loads(response_answer)
         print("Method 1 successful")
@@ -213,8 +238,6 @@ def query_llm_fix(text: FixRequest):
 
     # print(months)
     retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
-
-    context = "\n".join([i[0] for i in retrieved_docs])
     season_data = get_season_data()
     # Convert itinerary_data to a JSON string for the prompt
     itinerary_json = str(json.dumps(text.itinerary_data))
@@ -248,30 +271,52 @@ def query_llm_fix(text: FixRequest):
         "comments": "comments or additional notes about the itinerary"
     }
     """
-    # prompt = f"""can you change activities in day 2 to watching movies and day 3 to go to the beach from this itinerary: {itinerary_json}."""
-    # prompt = f"""Change activities from this itinerary: {itinerary_json} based on the following user request. ** This is an request: {text.text} ** """
-    prompt = f"""Change the activities in this itinerary: {itinerary_json}
+    if len(retrieved_docs) <= 0:
+        prompt = f"""Change the activities in this itinerary: {itinerary_json}
 
-        Your task:
-        1. MODIFY THE ACTIVITIES based on this user request: {text.text}
-        2. Use this additional context to improve the travel plan: {context}
-        3. You MUST REPLACE the original activities with new ones that align with the user's request
+            Your task:
+            1. MODIFY THE ACTIVITIES based on this user request: {text.text}
+            2. Use this additional text and cities to improve the travel plan: {text.text} and {text.cities}
+            3. You MUST REPLACE the original activities with new ones that align with the user's request
 
-        Requirements for the modified itinerary:
-        - Maintain the same structure with multiple days (YYYY-MM-DD format)
-        - Keep the day labels (e.g., "Day 1", "Day 2")
-        - Preserve the time slots (HH:mm, 24-hour format)
-        - REPLACE the activities with new ones that match the user request
-        - Include relevant comments about seasonal appropriateness using this data: {season_data}
-        (e.g., check if activities match seasonal conditions like cherry blossoms blooming periods)
-        - Latitude and Longitude could match the new activities, or be left empty if not applicable.
+            Requirements for the modified itinerary:
+            - Maintain the same structure with multiple days (YYYY-MM-DD format)
+            - Keep the day labels (e.g., "Day 1", "Day 2")
+            - Preserve the time slots (HH:mm, 24-hour format)
+            - REPLACE the activities with new ones that match the user request
+            - Include relevant comments about seasonal appropriateness using this data: {season_data}
+            (e.g., check if activities match seasonal conditions like cherry blossoms blooming periods)
+            - Latitude and Longitude could match the new activities, or be left empty if not applicable.
 
-        DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
-        *** NO double quotes at the start and end of the JSON response. ***
-        **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
-        make the itinerary in English language.
-    """
-    
+            DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
+            *** NO double quotes at the start and end of the JSON response. ***
+            **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
+            make the itinerary in English language.
+        """ 
+    else:
+        context = "\n".join([i[0] for i in retrieved_docs])
+        prompt = f"""Change the activities in this itinerary: {itinerary_json}
+
+            Your task:
+            1. MODIFY THE ACTIVITIES based on this user request: {text.text}
+            2. Use this additional context to improve the travel plan: {context}
+            3. You MUST REPLACE the original activities with new ones that align with the user's request
+
+            Requirements for the modified itinerary:
+            - Maintain the same structure with multiple days (YYYY-MM-DD format)
+            - Keep the day labels (e.g., "Day 1", "Day 2")
+            - Preserve the time slots (HH:mm, 24-hour format)
+            - REPLACE the activities with new ones that match the user request
+            - Include relevant comments about seasonal appropriateness using this data: {season_data}
+            (e.g., check if activities match seasonal conditions like cherry blossoms blooming periods)
+            - Latitude and Longitude could match the new activities, or be left empty if not applicable.
+
+            DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
+            *** NO double quotes at the start and end of the JSON response. ***
+            **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
+            make the itinerary in English language.
+        """
+        
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
