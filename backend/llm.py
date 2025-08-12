@@ -115,28 +115,32 @@ async def query_llm(text: Item):
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                // more schedule items as needed
             ]
             },
             {
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                // more schedule items as needed
             ]
-            }
+            },
+            // more schedule items as needed
         ],
         "comments": "comments or additional notes about the itinerary"
     }
     """
+    
     if len(retrieved_docs) <= 0:
         prompt = f"""Generate a detailed travel itinerary in JSON format. 
             
@@ -146,9 +150,10 @@ async def query_llm(text: Item):
             - **A schedule** for each day, containing: 
             - **Time slots** (`HH:mm`, 24-hour format).  
             - **Activities** for each time slot.
-            - **Latitude and longitude** coordinates for each activity (e.g., `"lat": 35.6895`, `"lng": 139.6917`).
-            - **lat** and **lng** are the coordinates of the activity location, which can be found on Google Maps or similar services.
-            - *** **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel"). ***
+            - ** Do not guess coordinates. Always keep lat/lng null. **
+            - *** need_location should be false if the activity is not location-specific (e.g., "Shopping", "Dining", "Hotel rest time", "Free time") and if need_location is false make it null.***
+            - *** For specific attractions, museums, temples, or landmarks, need_location always true and give me specific name of location from activity at specific_location_name if need_location is false make it null. ***
+            - Make sure that specific_location_name is from activity and don't change activity make it normal like itinerary plan
             
             - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they're not blooming. ** here is season data {season_data}.
         
@@ -171,9 +176,10 @@ async def query_llm(text: Item):
             - **A schedule** for each day, containing: 
             - **Time slots** (`HH:mm`, 24-hour format).  
             - **Activities** for each time slot.
-            - **Latitude and longitude** coordinates for each activity (e.g., `"lat": 35.6895`, `"lng": 139.6917`).
-            - **lat** and **lng** are the coordinates of the activity location, which can be found on Google Maps or similar services.
-            - *** **lat** and **lng** can be empty if the activity is not location-specific (e.g., "Shopping" or "Dining" or "Hotel"). ***
+            - ** Do not guess coordinates. Always keep lat/lng null. **
+            - *** need_location should be false if the activity is not location-specific (e.g., "Shopping", "Dining", "Hotel rest time", "Free time").***
+            - *** For specific attractions, museums, temples, or landmarks, need_location always true and give me specific name of location from activity at specific_location_name. ***
+            - Make sure that specific_location_name is from activity and don't change activity make it normal like itinerary plan
             
             - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they're not blooming. ** here is season data {season_data}.
         
@@ -206,9 +212,9 @@ async def query_llm(text: Item):
         response_answer = response_answer[4:]
     try:
         data = json.loads(response_answer)
-        print("Method 1 successful")
+        print("JSON parsed successfully")
     except json.JSONDecodeError as e:
-        print(f"Method 1 failed: {e}")
+        print(f"JSON parsing failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to parse JSON from model response")
 
     return data
@@ -249,24 +255,27 @@ def query_llm_fix(text: FixRequest):
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                // more schedule items as needed
             ]
             },
             {
             "date": "YYYY-MM-DD",
             "day": "Day x",
             "schedule": [
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 },
-                { "time": "HH:mm", "activity": "", "lat": 0.0, "lng": 0.0 }
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                { "time": "HH:mm", "activity": "", "need_location": boolean, "specific_location_name": null, "lat": null, "lng": null },
+                // more schedule items as needed
             ]
-            }
+            },
+            // more schedule items as needed
         ],
         "comments": "comments or additional notes about the itinerary"
     }
@@ -286,8 +295,10 @@ def query_llm_fix(text: FixRequest):
             - REPLACE the activities with new ones that match the user request
             - Include relevant comments about seasonal appropriateness using this data: {season_data}
             (e.g., check if activities match seasonal conditions like cherry blossoms blooming periods)
-            - Latitude and Longitude could match the new activities, or be left empty if not applicable.
-
+            - *** need_location should be false if the activity is not location-specific (e.g., "Shopping", "Dining", "Hotel rest time", "Free time").***
+            - *** For specific attractions, museums, temples, or landmarks, need_location always true and give me specific name of location from activity at specific_location_name. ***
+            - Make sure that specific_location_name is from activity and don't change activity make it normal like itinerary plan
+            
             DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
             *** NO double quotes at the start and end of the JSON response. ***
             **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
@@ -309,8 +320,10 @@ def query_llm_fix(text: FixRequest):
             - REPLACE the activities with new ones that match the user request
             - Include relevant comments about seasonal appropriateness using this data: {season_data}
             (e.g., check if activities match seasonal conditions like cherry blossoms blooming periods)
-            - Latitude and Longitude could match the new activities, or be left empty if not applicable.
-
+            - *** need_location should be false if the activity is not location-specific (e.g., "Shopping", "Dining", "Hotel rest time", "Free time").***
+            - *** For specific attractions, museums, temples, or landmarks, need_location always true and give me specific name of location from activity at specific_location_name. ***
+            - Make sure that specific_location_name is from activity and don't change activity make it normal like itinerary plan
+            
             DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
             *** NO double quotes at the start and end of the JSON response. ***
             **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
@@ -334,7 +347,7 @@ def query_llm_fix(text: FixRequest):
     try:
     # Parse the input text directly
         data = json.loads(response_answer)
-        print("Method 1 successful")
+        print("JSON parsed successfully")
     except json.JSONDecodeError as e:
-        print(f"Method 1 failed: {e}")
+        print(f"JSON parsing failed: {e}")
     return data
