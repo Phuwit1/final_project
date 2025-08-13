@@ -1,13 +1,16 @@
 from typing import Union, Dict, Any
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
-import psycopg2
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
-import json
 from dotenv import load_dotenv
-import os
 from datetime import datetime
+import requests
+import psycopg2
+import json
+import os
+import urllib.parse
+
 
 load_dotenv()
 # import uvicorn
@@ -358,4 +361,28 @@ def query_llm_fix(text: FixRequest):
 
 @app.post("/get_location/")
 def get_location(text: Location):
-    return text.itinerary_data
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+        
+    itinerary = text.itinerary_data["itinerary"]
+    for day in itinerary:
+        for time in day["schedule"]:
+            if time["need_location"] == True and time["specific_location_name"] is not None:
+                address_name = time["specific_location_name"]
+                address_encoded = urllib.parse.quote(address_name)
+                url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address_encoded}&components=country:JP&region=jp&key={google_api_key}"
+                
+                response = requests.get(url)
+                data = response.json()
+                
+                # ดึง lat/lng
+                if data["status"] == "OK":
+                    lat = data["results"][0]["geometry"]["location"]["lat"]
+                    lng = data["results"][0]["geometry"]["location"]["lng"]
+                    time["lat"] = lat
+                    time["lng"] = lng
+                else:
+                    print("Error:", data["status"])
+    
+    text.itinerary_data["itinerary"] = itinerary
+    
+    return text
