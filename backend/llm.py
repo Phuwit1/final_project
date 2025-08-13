@@ -32,6 +32,9 @@ class FixRequest(BaseModel):
     cities: list
     itinerary_data: Dict[str, Any]
 
+class Location(BaseModel):
+    itinerary_data: Dict[str, Any]
+
     
 def query_documents(num_days, months, cities, query_text, k=3):
     conn = psycopg2.connect(
@@ -351,3 +354,8 @@ def query_llm_fix(text: FixRequest):
     except json.JSONDecodeError as e:
         print(f"JSON parsing failed: {e}")
     return data
+
+
+@app.post("/get_location/")
+def get_location(text: Location):
+    return text.itinerary_data
