@@ -4,7 +4,10 @@ import ParallaxScrollView from '@/components/ParallaxScrollView';
 import TripCardID from '@/components/ui/trip/cardtripId';
 import DailyPlanTabs from '@/components/ui/trip/Dailytrip';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import FloatingChat from '@/components/ui/trip/chat/Floatingchat';
+import { DailyPlanTabsHandle } from '@/components/ui/trip/Dailytrip';
+
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import dayjs from 'dayjs';
@@ -58,6 +61,11 @@ export default function Hometrip() {
     const { trip_id } = useLocalSearchParams();
     const [trip, setTrip] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [itineraryData, setItineraryData] = useState<any>(null)
+    const API_BASE = useMemo(() => 'http://192.168.1.45:8000', []);
+
+    
+    const dailyRef = useRef<DailyPlanTabsHandle>(null);
 
     useFocusEffect(
       useCallback(() => {
@@ -87,6 +95,8 @@ export default function Hometrip() {
       }, [trip_id])
     );
 
+    
+
     if (loading) {
         return <ActivityIndicator style={{ marginTop: 100 }} />;
     }
@@ -95,14 +105,18 @@ export default function Hometrip() {
         return <Text style={{ textAlign: 'center', marginTop: 100 }}>ไม่พบทริป</Text>;
     }
 
+    const totalDays = getDuration(trip.start_plan_date, trip.end_plan_date);
+
+   
+
     return (
-        <>
+        <View style={styles.screen} pointerEvents="box-none">
             <ParallaxScrollView
                 headerHeight={350}
                 headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
                 headerImage={
                    <View style={styles.imageWrapper}>
-                    <Image
+                    <Image  
                       source={require('@/assets/images/home/fuji-view.jpg')}
                       style={styles.imageview}
                     />
@@ -140,13 +154,32 @@ export default function Hometrip() {
 
               </ParallaxScrollView>
 
+              <FloatingChat
+                apiBaseUrl={API_BASE}
+                dayCount={totalDays}
+                startDate={trip.start_plan_date}
+                endDate={trip.end_plan_date}
+                itineraryData={itineraryData ?? undefined}
+                onPatchItinerary={(newItin: any) => setItineraryData(newItin)}
+                onNavigateToDay={(index) => dailyRef.current?.setActiveDay(index)}
+                fabBottom={500}     // 👈 ระยะฐาน (จะบวก safe area ให้อัตโนมัติ)
+                fabRight={16}
+              />
+
              
-        </>
+        </View>
        
     )
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    position: 'relative',    // ✅ ให้ลูก absolute ยึดเต็มจอได้
+  },
+  scroll: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     flexDirection: 'row',

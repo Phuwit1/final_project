@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List, Dict, Any
 from prisma import Prisma
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -12,7 +12,13 @@ import secrets
 import string
 import uvicorn
 from starlette.middleware.base import BaseHTTPMiddleware
+import re, os, json, psycopg2
+from dotenv import load_dotenv
+from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 
+
+load_dotenv()
 app = FastAPI()
 
 if __name__ == "__main__":
@@ -856,3 +862,55 @@ async def delete_trip_schedule(schedule_id: int, db: Prisma = Depends(get_db)):
     
     except Exception as e:
         return {"error": str(e)}
+    
+# ================== AI Chat ==================
+
+
+from llmtest import query_llm, query_llm_fix, Item, FixRequest
+
+@app.post("/llm/")
+async def create_itinerary(item: Item):
+    return await query_llm(item)
+
+@app.post("/llm/fix/")
+def fix_itinerary(req: FixRequest):
+    return query_llm_fix(req)
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatBody(BaseModel):
+    start_date: str              # "DD/MM/YYYY"
+    end_date: str                # "DD/MM/YYYY"
+    messages: List[ChatMessage]
+    itinerary_data: Optional[dict] = None
+
+nav_re = re.compile(r"(?:ไป\s*วันที่|ไป\s*วัน|วันที่|วัน|day)\s*(\d{1,2})", re.I)
+fix_keywords = ["แก้","เปลี่ยน","เพิ่ม","ลบ","ย้าย","สลับ","update","change","replace","edit","add","remove","swap","move","reschedule"]
+
+@app.post("/ai/chat")
+async def ai_chat(body: ChatBody):
+    if not body.messages:
+        return {"reply": "พิมพ์ข้อความมาได้เลยค่ะ"}
+
+    user_text = body.messages[-1].content.strip()
+
+    # เจอคำสั่ง "ไปวันที่ X"
+    m = nav_re.search(user_text)
+    if m:
+        day = int(m.group(1))
+        return {"reply": f"ไปวันที่ {day} นะคะ", "action": {"type": "goto_day", "day": day}}
+
+    # ถ้ามีแผนเดิม + ดูเหมือนแก้แผน → เรียก /llm/fix
+    if body.itinerary_data and any(k in user_text.lower() for k in fix_keywords):
+        fixed = query_llm_fix(FixRequest(text=user_text, itinerary_data=body.itinerary_data))
+        return {"reply": "ปรับแผนให้แล้วค่ะ", "itinerary": fixed}
+
+    # ไม่ใช่สองอย่างบน → สร้างแผนใหม่ช่วงวัน
+    generated = await query_llm(Item(
+        start_date=body.start_date,  # "DD/MM/YYYY"
+        end_date=body.end_date,
+        text=user_text
+    ))
+    return {"reply": "นี่คือร่างแผนทริปค่ะ", "itinerary": generated}

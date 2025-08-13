@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -15,68 +15,116 @@ const timeSlotOrder = ['MORNING', 'AFTERNOON', 'EVENING', 'NIGHT'] as const;
 type TimeSlot = (typeof timeSlotOrder)[number];
 
 type DailyPlan = {
-  day: number;
-  date: string;
+  day: number;           // 1-based
+  date: string;          // 'YYYY-MM-DD'
   items: {
     [key in TimeSlot]?: string[];
   };
 };
 
-type DailyPlanTabsProps = {
-  startDate: string;
-  endDate: string;
-  plans: DailyPlan[];
+type Itinerary = {
+  itinerary: Array<{
+    date: string; // 'YYYY-MM-DD'
+    day: string;  // 'Day 1' ...
+    schedule: Array<{ time: string; activity: string; lat?: number; lng?: number }>;
+  }>;
+  comments?: string;
 };
 
-export default function DailyPlanTabs({
-  startDate,
-  endDate,
-  plans: initialPlans = [],
-}: DailyPlanTabsProps) {
+export type DailyPlanTabsHandle = {
+  setActiveDay: (index: number) => void; // 0-based
+};
+
+type DailyPlanTabsProps = {
+  startDate: string;             // ISO เช่น '2025-10-05'
+  endDate: string;               // ISO
+  plans?: DailyPlan[];           // แผนรูปแบบเดิมของคุณ (ช่วงเวลา)
+  itineraryData?: Itinerary;     // แผนจาก LLM (มี time ชัดเจน)
+  onPlansChange?: (plans: DailyPlan[]) => void;
+};
+
+const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, DailyPlanTabsProps>(function DailyPlanTabs(
+  { startDate, endDate, plans: initialPlans = [], itineraryData, onPlansChange },
+  ref
+) {
   const start = dayjs(startDate);
   const end = dayjs(endDate);
-  const tripDays = end.diff(start, 'day') + 1;
+
+  // จำนวนวันจากช่วงวันที่
+  const tripDaysRange = Math.max(1, end.diff(start, 'day') + 1);
+  // ถ้ามี itineraryData แต่อยู่ยาว/สั้นกว่า ให้เลือกค่ามากสุดเพื่อแสดงแท็บครบ
+  const tripDays = Math.max(tripDaysRange, itineraryData?.itinerary?.length ?? 0, initialPlans.length);
 
   const [selectedDay, setSelectedDay] = useState(1);
-  const [plans, setPlans] = useState<DailyPlan[]>(initialPlans);
+  const [plans, setPlans] = useState<DailyPlan[]>(() =>
+    initialPlans.length ? initialPlans : makeEmptyPlansForTrip(start, tripDays)
+  );
+
+  useImperativeHandle(ref, () => ({
+    setActiveDay: (index: number) => {
+      const clamped = clamp(index, 0, tripDays - 1);
+      setSelectedDay(clamped + 1);
+    },
+  }));
+
+  // เมื่อ itineraryData มา/เปลี่ยน → map เข้าเป็น plans (MORNING/AFTERNOON/EVENING/NIGHT)
+  useEffect(() => {
+    if (!itineraryData?.itinerary?.length) return;
+
+    const mapped = mapItineraryToTimeSlots(start, tripDays, itineraryData);
+    setPlans(mapped);
+    onPlansChange?.(mapped);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(itineraryData)]);
+
+  // ถ้า initialPlans เปลี่ยน (เช่น โหลดจาก DB) ก็อัปเดต
+  useEffect(() => {
+    if (!initialPlans.length) return;
+    setPlans(initialPlans);
+    onPlansChange?.(initialPlans);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(initialPlans)]);
+
+  const currentDateLabel = start.add(selectedDay - 1, 'day').format('D MMMM');
+  const currentPlan = plans.find((p) => p.day === selectedDay);
+
+  // ----- modal state (เพิ่มกิจกรรม) -----
   const [modalVisible, setModalVisible] = useState(false);
   const [newTime, setNewTime] = useState<TimeSlot>('MORNING');
   const [newDescription, setNewDescription] = useState('');
 
-  const currentDate = start.add(selectedDay - 1, 'day').format('D MMMM');
-  const currentPlans = plans.find((p) => p.day === selectedDay)?.items || {};
-
   const handleDeleteActivity = (slot: TimeSlot, indexToDelete: number) => {
-    const updatedPlans = [...plans];
-    const dayIndex = updatedPlans.findIndex((p) => p.day === selectedDay);
+    const updated = structuredClone(plans);
+    const dayIndex = updated.findIndex((p) => p.day === selectedDay);
+    if (dayIndex === -1) return;
 
-    if (dayIndex !== -1) {
-      const slotItems = updatedPlans[dayIndex].items[slot] || [];
-      slotItems.splice(indexToDelete, 1);
-      updatedPlans[dayIndex].items[slot] = [...slotItems];
-      setPlans(updatedPlans);
-    }
+    const slotItems = updated[dayIndex].items[slot] || [];
+    updated[dayIndex].items[slot] = slotItems.filter((_, idx) => idx !== indexToDelete);
+    setPlans(updated);
+    onPlansChange?.(updated);
   };
 
   const handleAddActivity = () => {
-    if (!newDescription.trim()) return;
+    const desc = newDescription.trim();
+    if (!desc) return;
 
-    const updatedPlans = [...plans];
-    const dayIndex = updatedPlans.findIndex((p) => p.day === selectedDay);
+    const updated = structuredClone(plans);
+    let dayIndex = updated.findIndex((p) => p.day === selectedDay);
 
-    if (dayIndex !== -1) {
-      const dayPlan = updatedPlans[dayIndex];
-      const existingSlot = dayPlan.items[newTime] || [];
-      dayPlan.items[newTime] = [...existingSlot, newDescription.trim()];
-    } else {
-      updatedPlans.push({
+    if (dayIndex === -1) {
+      updated.push({
         day: selectedDay,
         date: start.add(selectedDay - 1, 'day').format('YYYY-MM-DD'),
-        items: { [newTime]: [newDescription.trim()] },
+        items: { [newTime]: [desc] },
       });
+    } else {
+      const target = updated[dayIndex];
+      const exist = target.items[newTime] || [];
+      target.items[newTime] = [...exist, desc];
     }
 
-    setPlans(updatedPlans);
+    setPlans(updated);
+    onPlansChange?.(updated);
     setNewDescription('');
     setNewTime('MORNING');
     setModalVisible(false);
@@ -84,22 +132,15 @@ export default function DailyPlanTabs({
 
   return (
     <View>
-      {/* ปุ่ม Day 1, 2, 3 */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.dayButtonContainer}
-      >
-        {[...Array(tripDays)].map((_, i) => {
+      {/* ปุ่ม Day 1..N */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayButtonContainer}>
+        {Array.from({ length: tripDays }).map((_, i) => {
           const day = i + 1;
           const date = start.add(i, 'day').format('D MMM');
           return (
             <TouchableOpacity
               key={day}
-              style={[
-                styles.dayButton,
-                selectedDay === day && styles.dayButtonSelected,
-              ]}
+              style={[styles.dayButton, selectedDay === day && styles.dayButtonSelected]}
               onPress={() => setSelectedDay(day)}
             >
               <Text style={styles.dayButtonText}>{`Day ${day}`}</Text>
@@ -111,16 +152,16 @@ export default function DailyPlanTabs({
 
       {/* แผนประจำวัน */}
       <View style={styles.planContainer}>
-        <Text style={styles.planTitle}>📅 แผนวันที่ {currentDate}</Text>
+        <Text style={styles.planTitle}>📅 แผนวันที่ {currentDateLabel}</Text>
 
         {timeSlotOrder.map((slot) => {
-          const slotItems = currentPlans[slot] || [];
+          const slotItems = currentPlan?.items?.[slot] ?? [];
           return (
             <View key={slot} style={styles.planItem}>
               <Text style={styles.planTime}>{slot}</Text>
               {slotItems.length > 0 ? (
                 slotItems.map((desc, index) => (
-                  <View key={index} style={styles.itemRow}>
+                  <View key={`${slot}-${index}`} style={styles.itemRow}>
                     <Text style={styles.planText}>📝 {desc}</Text>
                     <TouchableOpacity onPress={() => handleDeleteActivity(slot, index)}>
                       <Text style={{ color: 'red', fontWeight: 'bold' }}>ลบ</Text>
@@ -135,10 +176,7 @@ export default function DailyPlanTabs({
         })}
 
         {/* ปุ่ม New List */}
-        <TouchableOpacity
-          style={styles.newListButton}
-          onPress={() => setModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.newListButton} onPress={() => setModalVisible(true)}>
           <Text style={styles.newListText}>+ New list</Text>
         </TouchableOpacity>
       </View>
@@ -154,10 +192,7 @@ export default function DailyPlanTabs({
               {timeSlotOrder.map((slot) => (
                 <TouchableOpacity
                   key={slot}
-                  style={[
-                    styles.slotButton,
-                    newTime === slot && styles.slotSelected,
-                  ]}
+                  style={[styles.slotButton, newTime === slot && styles.slotSelected]}
                   onPress={() => setNewTime(slot)}
                 >
                   <Text>{slot}</Text>
@@ -186,8 +221,59 @@ export default function DailyPlanTabs({
       </Modal>
     </View>
   );
+});
+
+export default DailyPlanTabs;
+
+/* ---------- Helpers ---------- */
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(n, max));
 }
 
+function timeToSlot(timeStr: string): TimeSlot {
+  // รองรับ 'HH:mm' (24h). ถ้า parse ไม่ได้ -> MORNING
+  const m = /^(\d{1,2}):(\d{2})$/.exec(timeStr.trim());
+  if (!m) return 'MORNING';
+  const h = Number(m[1]);
+  if (h >= 5 && h <= 11) return 'MORNING';
+  if (h >= 12 && h <= 16) return 'AFTERNOON';
+  if (h >= 17 && h <= 20) return 'EVENING';
+  return 'NIGHT'; // 21-4
+}
+
+function makeEmptyPlansForTrip(start: dayjs.Dayjs, tripDays: number): DailyPlan[] {
+  return Array.from({ length: tripDays }).map((_, i) => ({
+    day: i + 1,
+    date: start.add(i, 'day').format('YYYY-MM-DD'),
+    items: {},
+  }));
+}
+
+function mapItineraryToTimeSlots(
+  start: dayjs.Dayjs,
+  tripDays: number,
+  itineraryData: Itinerary
+): DailyPlan[] {
+  const base = makeEmptyPlansForTrip(start, tripDays);
+
+  itineraryData.itinerary.forEach((d, idx) => {
+    const dayIndex = clamp(idx, 0, base.length - 1);
+    const plan = base[dayIndex];
+    // ถ้ามีวันที่จาก LLM ก็แทนให้ตรง
+    if (d.date) plan.date = d.date;
+
+    d.schedule?.forEach((s) => {
+      const slot = timeToSlot(s.time || '');
+      const label = s.time ? `${s.time} — ${s.activity}` : s.activity;
+      plan.items[slot] = [...(plan.items[slot] || []), label];
+    });
+  });
+
+  return base;
+}
+
+/* ---------- Styles ---------- */
 const styles = StyleSheet.create({
   dayButtonContainer: {
     flexDirection: 'row',

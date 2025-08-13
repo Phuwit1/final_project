@@ -29,6 +29,7 @@ model Customer {
 
 model TripGroup {
   trip_id         Int           @id @default(autoincrement())
+  plan_id         Int?          @unique
   owner_id        Int
 
   description     String        @db.VarChar(300)
@@ -38,7 +39,7 @@ model TripGroup {
   
   owner           Customer      @relation("CustomerToTripGroup", fields: [owner_id], references: [customer_id], onDelete: Cascade)
   members         GroupMember[] @relation("TripGroupToGroupMember")
-  tripPlans       TripPlan[]
+  tripPlan        TripPlan?      @relation(fields: [plan_id], references: [plan_id], onDelete: Cascade)
   budget          Budget?       @relation("TripGroupBudget")
 }
 
@@ -87,7 +88,7 @@ model TripPlan {
   day_of_trip  Int
   creat_at     DateTime       @default(now()) @db.Timestamp()
   
-  tripGroup    TripGroup?     @relation(fields: [trip_id], references: [trip_id], onDelete: Cascade)
+  tripGroup       TripGroup?
   schedules    TripSchedule[]
   budget       Budget?        @relation("TripPlanBudget")
 }
