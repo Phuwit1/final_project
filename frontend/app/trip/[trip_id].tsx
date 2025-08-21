@@ -42,6 +42,9 @@ const formatTripDateRange = (startStr: string, endStr: string): string => {
   return `${startDate}-${endDate} ${monthName} ${year}`;
 };
 
+type TimeSlot = 'MORNING'|'AFTERNOON'|'EVENING'|'NIGHT';
+type DailyPlan = { day:number; date:string; items: Partial<Record<TimeSlot, string[]>> };
+
 // const mockTrips = [
 //     {
 //       id: '1',
@@ -62,10 +65,12 @@ export default function Hometrip() {
     const [trip, setTrip] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [itineraryData, setItineraryData] = useState<any>(null)
-    const API_BASE = useMemo(() => 'http://192.168.1.45:8000', []);
+    const API_BASE = useMemo(() => 'http://192.168.1.45', []);
 
     
     const dailyRef = useRef<DailyPlanTabsHandle>(null);
+    const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]); 
+    
 
     useFocusEffect(
       useCallback(() => {
@@ -79,7 +84,7 @@ export default function Hometrip() {
               headers: { Authorization: `Bearer ${token}` },
             });
 
-            console.log("Fetched trip:", res.data);
+    
             
             setTrip(res.data);
           } catch (err) {
@@ -143,24 +148,21 @@ export default function Hometrip() {
                 
               >
                  <DailyPlanTabs
-                startDate={trip.start_plan_date}
-                endDate={trip.end_plan_date}
-                plans={[
-                  'เที่ยววัด Asakusa, กินราเมน',
-                  'ไป DisneySea, ช็อปปิ้ง Shibuya',
-                  'เดินเล่น Ueno Park แล้วกลับ',
-                ]}
+                    startDate={trip.start_plan_date}
+                    endDate={trip.end_plan_date}
+                    planId={trip.plan_id}                 // << ส่งแผนที่ใช้งานจริงเข้าไปตรงๆ
+                    ref={dailyRef}
               />
 
               </ParallaxScrollView>
 
               <FloatingChat
                 apiBaseUrl={API_BASE}
+                planId={trip.plan_id}   
                 dayCount={totalDays}
                 startDate={trip.start_plan_date}
                 endDate={trip.end_plan_date}
-                itineraryData={itineraryData ?? undefined}
-                onPatchItinerary={(newItin: any) => setItineraryData(newItin)}
+                onPatchItinerary={(mappedPlans) => setDailyPlans(mappedPlans)}
                 onNavigateToDay={(index) => dailyRef.current?.setActiveDay(index)}
                 fabBottom={500}     // 👈 ระยะฐาน (จะบวก safe area ให้อัตโนมัติ)
                 fabRight={16}

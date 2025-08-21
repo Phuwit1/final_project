@@ -16,6 +16,14 @@ const CreateTripScreen = () => {
   const today = new Date();
   today.setHours(0,0,0,0); // ตัดเวลาออก เพื่อเช็คแค่วัน
 
+  // ใช้กับทุกที่ที่ต้องส่ง 'วันที่' เข้าเซิร์ฟเวอร์
+  const toYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`; // e.g. "2025-08-14"
+  };
+
 
   const onChangeDate = (event: any, selectedDate: Date | undefined) => {
     setShowPicker({ show: false, mode: showPicker.mode });
@@ -55,8 +63,8 @@ const CreateTripScreen = () => {
 
     const payload = {
       name_group: tripName,
-      start_plan_date: startDate.toISOString(),
-      end_plan_date: endDate.toISOString(),    
+      start_plan_date: toYMD(startDate),
+      end_plan_date: toYMD(endDate),    
     };
     console.log("Payload for create trip:", payload)
     const res = await axios.post('http://192.168.1.45:8000/trip_plan', payload, {
@@ -67,7 +75,7 @@ const CreateTripScreen = () => {
     
 
     // Alert.alert('สร้างทริปสำเร็จ', `รหัสกลุ่ม: ${res.data.uniqueCode}`);
-    router.push('/(tabs)/profile'); 
+    router.push('/(tabs)/mytrip'); 
   } catch (err: any) {
     console.error('Create trip error:', err.response?.data || err.message);
     Alert.alert('ผิดพลาด', 'ไม่สามารถสร้างทริปได้');

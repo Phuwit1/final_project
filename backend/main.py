@@ -1,12 +1,13 @@
 from typing import Union, List, Dict, Any
-from prisma import Prisma
+from prisma import Prisma, types
+from prisma.errors import ForeignKeyViolationError, UniqueViolationError, RecordNotFoundError
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import bcrypt
 from jose import jwt, JWTError
 from typing import Annotated, Optional
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, date as D, time as T
 from fastapi.middleware.cors import CORSMiddleware
 import secrets
 import string
@@ -16,6 +17,7 @@ import re, os, json, psycopg2
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
+
 
 
 load_dotenv()
@@ -75,9 +77,18 @@ class TripPlan(BaseModel):
     
 class TripSchedule(BaseModel):
     plan_id: int
-    time: str
-    activity: str
-    description: str
+    date: date  
+    time: time
+    activity: str = Field(..., max_length=300)
+    description: str = Field("", max_length=300)
+
+class TripScheduleDocIn(BaseModel):  
+    plan_id: int
+    payload: Dict[str, Any]
+    
+
+class TripScheduleBulkRequest(BaseModel):
+    items: List[TripSchedule]
 
 class CustomerLogin(BaseModel):
     email: str
@@ -772,8 +783,6 @@ async def create_trip_plan(trip_plan: TripPlan, db: Prisma = Depends(get_db), cu
         
         return trip_plans
 
-        return trip_plans
-
     except Exception as e:
         print("🔥 Validation Error:", e)
         return {"error": str(e)}
@@ -808,6 +817,29 @@ async def delete_trip_plan(plan_id: int, db: Prisma = Depends(get_db)):
 
 # ================ Trip Schedule ===============
 
+EPOCH_DATE = D(1970, 1, 1)
+
+def normalize_for_prisma(item: TripSchedule) -> dict:
+    """
+    Prisma client (python) ต้องการ DateTime เสมอ:
+      - date -> combine(date, 00:00:00)
+      - time -> combine(1970-01-01, HH:MM:SS)
+    """
+    # เติมวินาทีให้ time ถ้าไม่มี
+    sec = item.time.second if isinstance(item.time.second, int) else 0
+    tt = T(item.time.hour, item.time.minute, sec)
+
+    return {
+        "plan_id": item.plan_id,
+        "date": datetime.combine(item.date, T(0, 0, 0)),
+        "time": datetime.combine(EPOCH_DATE, tt),
+        "activity": item.activity,
+        "description": item.description or "",
+    }
+
+
+
+
 @app.get("/trip_schedule")
 async def read_trip_schedule(db: Prisma = Depends(get_db)):
     try:
@@ -816,42 +848,59 @@ async def read_trip_schedule(db: Prisma = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
-@app.get("/trip_schedule/{schedule_id}")
-async def read_trip_schedule_by_id(schedule_id: int, db: Prisma = Depends(get_db)):
-    try:
-        trip_schedule = await db.tripschedule.find_unique(
-            where={"schedule_id": schedule_id}
-        )
-        return trip_schedule
     
-    except Exception as e:
-        return {"error": str(e)}
-    
+def ensure_jsonable(obj: Any):
+    if isinstance(obj, dict):
+        return {k: ensure_jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [ensure_jsonable(v) for v in obj]
+    if isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    # ถ้ามี Decimal/UUID ก็แปลงเป็น str ได้ตามต้องการ
+    return obj
+
 @app.post("/trip_schedule")
-async def create_trip_schedule(trip_schedule: TripSchedule, db: Prisma = Depends(get_db)):
+async def create_trip_schedule_doc(trip_schedule: TripScheduleDocIn, db: Prisma = Depends(get_db)):
+    
     try:
         trip_schedule = trip_schedule.model_dump()
-        trip_schedules = await db.tripschedule.create(
-            data=trip_schedule
+        payload_json = json.dumps(trip_schedule["payload"])
+        doc = await db.tripschedule.create(
+            data={
+                "payload": payload_json,       # required
+                "plan_id" : trip_schedule["plan_id"],  # required
+            }
         )
-        return trip_schedules
+        return doc
     
-    except Exception as e:
-        return {"error": str(e)}
+    except UniqueViolationError:
+        # มี plan_id นี้อยู่แล้ว
+        raise HTTPException(status_code=409, detail="plan_id already exists; use PUT /trip_schedule/{plan_id}")
+    except ForeignKeyViolationError:
+        raise HTTPException(status_code=404, detail="TripPlan not found for given plan_id")
 
-@app.put("/trip_schedule/{schedule_id}")
-async def update_trip_schedule(schedule_id: int, trip_schedule: TripSchedule, db: Prisma = Depends(get_db)):
+@app.put("/trip_schedule/{plan_id}")
+async def replace_trip_schedule_doc(plan_id: int, trip_schedule: TripScheduleDocIn, db: Prisma = Depends(get_db)):
+  
+    trip_schedule = trip_schedule.model_dump()
+
+    payload = trip_schedule["payload"]   # ✅ ตรงนี้เป็น dict/list อยู่แล้ว
+    if not isinstance(payload, str):
+        payload = json.dumps(payload, ensure_ascii=False)
+    
     try:
-        trip_schedule = trip_schedule.model_dump()
-        trip_schedules = await db.tripschedule.update(
-            where={"schedule_id": schedule_id},
-            data=trip_schedule
+        return await db.tripschedule.update(
+            where={"plan_id": trip_schedule["plan_id"]},
+            data={"payload": payload}  # Now it's a proper JSON string
         )
-        return trip_schedules
-    
-    except Exception as e:
-        return {"error": str(e)}
-
+    except RecordNotFoundError:
+        try:
+            return await db.tripschedule.create(
+                data={"plan_id": plan_id, "payload": payload}
+            )
+        except ForeignKeyViolationError:
+            raise HTTPException(status_code=404, detail="TripPlan not found for given plan_id")
+        
 @app.delete("/trip_schedule/{schedule_id}")
 async def delete_trip_schedule(schedule_id: int, db: Prisma = Depends(get_db)):
     try:
@@ -863,18 +912,85 @@ async def delete_trip_schedule(schedule_id: int, db: Prisma = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
     
+
+@app.post("/trip_schedule/bulk")
+async def create_trip_schedule_bulk(payload: TripScheduleBulkRequest, db: Prisma = Depends(get_db)):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="No schedules")
+
+    rows = [normalize_for_prisma(i) for i in payload.items]
+
+    # กันพลาด: ไม่อนุญาต plan_id ปะปนหลายตัวในคำขอเดียว
+    plan_ids = {r["plan_id"] for r in rows}
+    if len(plan_ids) != 1:
+        raise HTTPException(status_code=400, detail="Multiple plan_id in one request not allowed")
+
+    # (ถ้าอยากกันซ้ำเพิ่มโดยไม่แตะ schema ให้เปิดบล็อคนี้)
+    # --- dedupe ใน payload เอง ---
+    uniq = {}
+    for r in rows:
+        k = f"{r['plan_id']}|{r['date'].date().isoformat()}|{r['time'].time().strftime('%H:%M:%S')}|{r['activity'].strip().lower()}"
+        uniq[k] = r
+    rows = list(uniq.values())
+    if not rows:
+        return {"inserted": 0, "mode": "empty_after_dedupe"}
+
+    # --- สร้างแบบ bulk ---
+    try:
+        res = await db.tripschedule.create_many(data=rows, skip_duplicates=True)
+        # บางเวอร์ชันคืน int, บางเวอร์ชันคืน object ที่มี count
+        if isinstance(res, int):
+            inserted = res
+        elif hasattr(res, "count"):
+            inserted = res.count
+        else:
+            inserted = 0
+        return {"inserted": inserted, "mode": "bulk"}
+    except Exception as e:
+        # มาตรงนี้เฉพาะ "call create_many" fail จริง ๆ เท่านั้น
+        print("[bulk] create_many failed:", repr(e))
+
+    # --- Fallback ทีละแถว (และอย่าซ้ำ) ---
+    created = 0
+    for r in rows:
+        try:
+            await db.tripschedule.create(data=r)
+            created += 1
+        except Exception as e2:
+            # ถ้าซ้ำ ก็ข้ามไป (ไม่ throw ต่อ)
+            msg = str(e2).lower()
+            if "duplicate" in msg or "unique" in msg or "already exists" in msg:
+                continue
+            print("[bulk->single] one insert failed:", repr(e2))
+
+    if created == 0:
+        raise HTTPException(status_code=500, detail="Insert failed")
+    return {"inserted": created, "mode": "single_loop"}
+
+
+
+@app.get("/trip_schedule/{plan_id}")
+async def read_by_plan(plan_id: int, db: Prisma = Depends(get_db)):
+    schedule = await db.tripschedule.find_first(
+        where={"plan_id": plan_id}
+    )
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return schedule
+
+    
 # ================== AI Chat ==================
 
 
-from llmtest import query_llm, query_llm_fix, Item, FixRequest
+from llm import query_llm, query_llm_fix, Item, FixRequest
 
 @app.post("/llm/")
 async def create_itinerary(item: Item):
     return await query_llm(item)
 
 @app.post("/llm/fix/")
-def fix_itinerary(req: FixRequest):
-    return query_llm_fix(req)
+async def fix_itinerary(req: FixRequest):
+    return await query_llm_fix(req)
 
 class ChatMessage(BaseModel):
     role: str
@@ -914,3 +1030,24 @@ async def ai_chat(body: ChatBody):
         text=user_text
     ))
     return {"reply": "นี่คือร่างแผนทริปค่ะ", "itinerary": generated}
+
+
+@app.get("/cities")
+async def get_cities(db: Prisma = Depends(get_db)):
+    try:
+        cities = await db.city.find_many()
+        
+        # Filter fields in Python if needed
+        filtered_cities = [
+            {
+                "city_id": city.city_id,
+                "name": city.name,
+                "image_url": city.image_url
+            }
+            for city in cities
+        ]
+        return filtered_cities
+        
+    except Exception as e:
+        return {"error": str(e)}
+    

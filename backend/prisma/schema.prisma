@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgres"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -95,11 +95,19 @@ model TripPlan {
 
 model TripSchedule {
   schedule_id  Int       @id @default(autoincrement())
-  plan_id      Int
-  time         DateTime  @db.Time
-  activity     String    @db.VarChar(300)
-  description  String    @db.VarChar(300)
-  creat_at     DateTime  @default(now()) @db.Timestamp()
-  
+  plan_id     Int      @unique    
+  payload     Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
   tripPlan     TripPlan  @relation(fields: [plan_id], references: [plan_id], onDelete: Cascade)
 }
+
+model City {
+  city_id    Int      @id @default(autoincrement())
+  name       String   @unique
+  image_url  String   
+ 
+}
+
+
