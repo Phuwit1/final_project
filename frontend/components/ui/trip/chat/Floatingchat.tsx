@@ -23,10 +23,41 @@ type Msg = {
   kind?: 'itinerary';
   itinerary?: any;                                 // raw LLM itinerary ใช้พรีวิว
 };
+
+type ScheduleItem = {
+  time: string; // "HH:mm"
+  activity: string;
+  need_location: boolean;
+  specific_location_name: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+type DaySchedule = {
+  date: string;  // "YYYY-MM-DD"
+  day: string;   // "Day x"
+  schedule: ScheduleItem[];
+};
+
+type ItineraryPayload = {
+  itinerary: DaySchedule[];
+  comments?: string;
+};
+
+type TripScheduleIn = {
+  plan_id: number;
+  date: string;        // 'YYYY-MM-DD'
+  time: string;        // 'HH:mm:ss'
+  activity: string;
+  description: string; // เก็บว่างไปก่อน
+};
+
+
 // --- ชนิดพร็อพ ---
 type Props = {
   apiBaseUrl: string;
   dayCount: number;
+  planId: number; 
   onNavigateToDay: (index: number) => void;
   startDate: string;                 // ISO e.g. "2025-10-05"
   endDate: string;                   // ISO
@@ -88,6 +119,9 @@ const mapLLMToDailyPlans = (raw: any, startIso: string, endIso: string): DailyPl
   const end = dayjs(endIso);
   const total = Math.max(1, end.diff(start, 'day') + 1);
 
+  // PUSH DATABASE 
+  
+
   // เตรียมโครงว่างตามจำนวนวันทริปทั้งหมด (ให้ต่อเนื่อง)
   const blank: DailyPlan[] = Array.from({ length: total }, (_, idx) => ({
     day: idx + 1,
@@ -135,7 +169,7 @@ const summarizeItinerary = (raw: any): string[] => {
 };
 
 export default function FloatingChat({
-  apiBaseUrl, dayCount, onNavigateToDay,
+  apiBaseUrl, planId ,dayCount, onNavigateToDay,
   startDate, endDate, itineraryData, onPatchItinerary,
   fabBottom, fabRight,
 }: Props) {
@@ -143,7 +177,7 @@ export default function FloatingChat({
   // UI state
   const [visible, setVisible] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
-    { id: 'sys-hello', role: 'assistant', content: 'สวัสดีค่ะ ฉันคือผู้ช่วยทริป ✈️\nลองพิมพ์: "ไปวันที่ 2" หรือ "แก้วัน 2 ให้ไปวัดตอนเช้า"' },
+    { id: 'sys-hello', role: 'assistant', content: 'สวัสดีค่ะ ฉันคือผู้ช่วยทริป ✈️' },
   ]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -200,6 +234,56 @@ export default function FloatingChat({
     };
   };
 
+  // ---- helper: แปลง raw itinerary → TripScheduleIn[] สำหรับบันทึกลง DB ----
+const buildDBPayloadFromRaw = (raw: any, planId: number): TripScheduleIn[] => {
+  if (!raw || !Array.isArray(raw.itinerary)) return [];
+  const rows: TripScheduleIn[] = [];
+
+  for (const day of raw.itinerary) {
+    const dateStr = day?.date;
+    if (!dateStr) continue;
+    const list = Array.isArray(day?.schedule) ? day.schedule : [];
+    for (const s of list) {
+      const t = (s?.time || '').trim();              // "HH:mm"
+      const hhmmss = /^\d{1,2}:\d{2}$/.test(t) ? `${t}:00` : t || "09:00:00";
+      const activity = (s?.activity || '').trim();
+      if (!activity) continue;
+
+      rows.push({
+        plan_id: planId,
+        date: dayjs(dateStr).format('YYYY-MM-DD'),
+        time: hhmmss,
+        activity,
+        description: '',
+      });
+    }
+  }
+  return rows;
+};
+  // ---- helper: บันทึกลง DB ----
+const saveSchedulesToDB = async (plan_id: number, payload: ItineraryPayload) => {
+  const token = await AsyncStorage.getItem('access_token');
+  const headers: any = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  try {
+    await axios.post(
+      `http://192.168.1.45:8000/trip_schedule`,
+      {
+        plan_id,
+        payload,
+      },
+      { headers, timeout: 15000 }
+    );
+
+    return { ok: true, inserted: 1, mode: 'single_json' };
+  } catch (err) {
+    console.error("Failed to save itinerary:", err);
+    return { ok: false, inserted: 0, mode: 'single_json' };
+  }
+};
+
+
   const sendToAI = async (userText: string) => {
     const token = await AsyncStorage.getItem('access_token');
     const headers: any = { 'Content-Type': 'application/json' };
@@ -214,15 +298,28 @@ export default function FloatingChat({
     setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content }]);
   };
 
-  const applyItinerary = (raw: any) => {
-  try {
-    const mapped = mapLLMToDailyPlans(raw, startDate, endDate);
-    onPatchItinerary?.(mapped);
-    pushAssistant('ใส่ลงแผนให้แล้วค่ะ ✅');
-  } catch (e) {
-    pushAssistant('ใส่ลงแผนไม่สำเร็จ ลองใหม่อีกครั้งนะคะ');
-  }
-};
+
+  const savingRef = useRef(false);
+
+  const applyItinerary = async (raw: any) => {
+    if (savingRef.current) return;   // กันจิ้มซ้ำ/StrictMode
+    savingRef.current = true;
+    try {
+      const items = buildDBPayloadFromRaw(raw, planId);
+      const result = await saveSchedulesToDB(items);
+
+      if (result.ok) {
+        pushAssistant(`ใส่ลงแผนและบันทึกลงฐานข้อมูลแล้ว (${result.inserted} รายการ) ✅`);
+      } else {
+        pushAssistant(`ใส่ลงแผนสำเร็จ แต่บันทึกฐานข้อมูลไม่ครบ (${result.inserted}/${items.length})`);
+      }
+    } catch (e) {
+        console.error('applyItinerary error', e);
+        pushAssistant('เกิดข้อผิดพลาดระหว่างบันทึกลงฐานข้อมูล');
+    } finally {
+      savingRef.current = false;
+    }
+  };
 
   const onSend = async (textFromQuick?: string) => {
     const text = (textFromQuick ?? input).trim();
@@ -259,20 +356,8 @@ export default function FloatingChat({
       if (result?.itinerary) {
         // เก็บ raw LLM ไว้ใช้ต่อ
         setLatestRawItinerary(result.itinerary);
+       setMessages(prev => [...prev, { id: `it-${Date.now()}`, role: 'assistant', kind: 'itinerary', itinerary: result.itinerary, content: result.reply ?? 'นี่คือร่างแผนทริปค่ะ' }]);
 
-        // โชว์พรีวิวในบับเบิล
-        setMessages(prev => [
-          ...prev,
-          { id: `it-${Date.now()}`, role: 'assistant', kind: 'itinerary', itinerary: result.itinerary, content: result.reply ?? 'นี่คือร่างแผนทริปค่ะ' },
-        ]);
-
-        // แปลง → DailyPlan[] แล้วส่งให้หน้าแผน
-        if (onPatchItinerary) {
-          try {
-            const mapped = mapLLMToDailyPlans(result.itinerary, startDate, endDate);
-            onPatchItinerary(mapped);
-          } catch {}
-        }
       } else {
         pushAssistant(result?.reply ?? 'รับทราบค่ะ');
       }

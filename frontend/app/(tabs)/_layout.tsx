@@ -91,7 +91,7 @@ export default function TabLayout() {
       <View style={styles.fabContainer}>
         {open && (
           <View style={styles.actionButtons}>
-            <Link href="/Createtrip" asChild>
+            <Link href="/trip/after-create" asChild>
               <TouchableOpacity style={styles.actionButtonLeft}>
                 <Text style={styles.actionText}>Create Trip</Text>
               </TouchableOpacity>

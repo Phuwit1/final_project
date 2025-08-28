@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -8,212 +8,271 @@ import {
   Modal,
   TextInput,
   Pressable,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import dayjs from 'dayjs';
+import 'dayjs/locale/th';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const timeSlotOrder = ['MORNING', 'AFTERNOON', 'EVENING', 'NIGHT'] as const;
-type TimeSlot = (typeof timeSlotOrder)[number];
+dayjs.locale('th');
 
-type DailyPlan = {
-  day: number;           // 1-based
-  date: string;          // 'YYYY-MM-DD'
-  items: {
-    [key in TimeSlot]?: string[];
-  };
+const API_BASE = 'http://192.168.1.45:8000';
+
+// ===== ชนิดข้อมูลจาก API =====
+type DBScheduleRow = {
+  schedule_id: number;
+  plan_id: number;
+  date: string;           // ISO DateTime (db.Date) เช่น "2025-10-10T00:00:00.000Z"
+  time: string;           // ISO DateTime (db.Time) เช่น "1970-01-01T09:00:00.000Z"
+  activity: string;
+  description: string;
+  creat_at?: string;
 };
 
-type Itinerary = {
-  itinerary: Array<{
-    date: string; // 'YYYY-MM-DD'
-    day: string;  // 'Day 1' ...
-    schedule: Array<{ time: string; activity: string; lat?: number; lng?: number }>;
-  }>;
-  comments?: string;
+// ===== โครงให้แสดงต่อวัน =====
+type DisplayItem = {
+  schedule_id: number;
+  hhmm: string;           // "HH:mm"
+  activity: string;
+  description: string;
+};
+
+type DailyData = {
+  day: number;            // 1-based
+  dateISO: string;        // 'YYYY-MM-DD'
+  items: DisplayItem[];   // เรียงเวลาแล้ว
 };
 
 export type DailyPlanTabsHandle = {
-  setActiveDay: (index: number) => void; // 0-based
+  setActiveDay: (index: number) => void;  // 0-based
+  reload: () => void;                     // รีเฟรชจาก DB
 };
 
-type DailyPlanTabsProps = {
-  startDate: string;             // ISO เช่น '2025-10-05'
-  endDate: string;               // ISO
-  plans?: DailyPlan[];           // แผนรูปแบบเดิมของคุณ (ช่วงเวลา)
-  itineraryData?: Itinerary;     // แผนจาก LLM (มี time ชัดเจน)
-  onPlansChange?: (plans: DailyPlan[]) => void;
+type Props = {
+  planId: number;
+  startDate: string;     // ISO
+  endDate: string;       // ISO
 };
 
-const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, DailyPlanTabsProps>(function DailyPlanTabs(
-  { startDate, endDate, plans: initialPlans = [], itineraryData, onPlansChange },
+function extractHHmm(timeStr: string): string {
+  // พยายามดึงจากรูปแบบ ISO ก่อน ป้องกัน timezone shift
+  // เช่น "1970-01-01T09:00:00.000Z" -> 09:00
+  const m = /T(\d{2}):(\d{2})/.exec(timeStr);
+  if (m) return `${m[1]}:${m[2]}`;
+  // ถ้าดันมาเป็น "09:00:00" หรือ "09:00"
+  const m2 = /^(\d{1,2}):(\d{2})/.exec(timeStr);
+  if (m2) {
+    const hh = m2[1].padStart(2, '0');
+    return `${hh}:${m2[2]}`;
+  }
+  // fallback
+  const d = dayjs(timeStr);
+  return d.isValid() ? d.format('HH:mm') : '00:00';
+}
+
+function toYYYYMMDD(dateStr: string): string {
+  // จาก ISO db.Date -> "YYYY-MM-DD"
+  const d = dayjs(dateStr);
+  return d.isValid() ? d.format('YYYY-MM-DD') : dateStr.slice(0, 10);
+}
+
+function buildDayRange(startISO: string, endISO: string): string[] {
+  const s = dayjs(startISO);
+  const e = dayjs(endISO);
+  const total = Math.max(1, e.diff(s, 'day') + 1);
+  return Array.from({ length: total }).map((_, i) => s.add(i, 'day').format('YYYY-MM-DD'));
+}
+
+const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanTabs(
+  { planId, startDate, endDate },
   ref
 ) {
-  const start = dayjs(startDate);
-  const end = dayjs(endDate);
-
-  // จำนวนวันจากช่วงวันที่
-  const tripDaysRange = Math.max(1, end.diff(start, 'day') + 1);
-  // ถ้ามี itineraryData แต่อยู่ยาว/สั้นกว่า ให้เลือกค่ามากสุดเพื่อแสดงแท็บครบ
-  const tripDays = Math.max(tripDaysRange, itineraryData?.itinerary?.length ?? 0, initialPlans.length);
-
   const [selectedDay, setSelectedDay] = useState(1);
-  const [plans, setPlans] = useState<DailyPlan[]>(() =>
-    initialPlans.length ? initialPlans : makeEmptyPlansForTrip(start, tripDays)
-  );
+  const [loading, setLoading] = useState(false);
+  const [days, setDays] = useState<DailyData[]>([]);
+
+  const dayKeys = useMemo(() => buildDayRange(startDate, endDate), [startDate, endDate]);
+
+ const fetchSchedules = async () => {
+  setLoading(true);
+  try {
+    const token = await AsyncStorage.getItem('access_token');
+    const headers: any = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const url = `${API_BASE}/trip_schedule/${planId}`;
+    const res = await axios.get(url, { headers, timeout: 30000 });
+
+    const payload = res.data?.payload;
+    if (!payload || !payload.itinerary) {
+      setDays([]);
+      return;
+    }
+
+    // map itinerary จาก payload
+    const packed: DailyData[] = payload.itinerary.map((day: any, idx: number) => {
+      const items: DisplayItem[] = (day.schedule ?? []).map((s: any, i: number) => ({
+        schedule_id: `${idx}-${i}`, // ไม่มี id จริง เอา index ทำ key
+        hhmm: s.time,
+        activity: s.activity,
+        description: s.specific_location_name ?? "",
+      }));
+
+      return {
+        day: idx + 1,
+        dateISO: day.date,
+        items,
+      };
+    });
+
+    setDays(packed);
+  } catch (e: any) {
+    console.error("fetchSchedules error:", e?.response?.data ?? e?.message ?? e);
+    Alert.alert("ดึงข้อมูลไม่สำเร็จ", "ตรวจสอบเครือข่าย/สิทธิ์การเข้าถึง");
+  } finally {
+    setLoading(false);
+  }
+};
+  useEffect(() => {
+    fetchSchedules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId, startDate, endDate]);
 
   useImperativeHandle(ref, () => ({
     setActiveDay: (index: number) => {
-      const clamped = clamp(index, 0, tripDays - 1);
-      setSelectedDay(clamped + 1);
+      const i = Math.max(0, Math.min(index, dayKeys.length - 1));
+      setSelectedDay(i + 1);
     },
+    reload: () => fetchSchedules(),
   }));
 
-  // เมื่อ itineraryData มา/เปลี่ยน → map เข้าเป็น plans (MORNING/AFTERNOON/EVENING/NIGHT)
-  useEffect(() => {
-    if (!itineraryData?.itinerary?.length) return;
-
-    const mapped = mapItineraryToTimeSlots(start, tripDays, itineraryData);
-    setPlans(mapped);
-    onPlansChange?.(mapped);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(itineraryData)]);
-
-  // ถ้า initialPlans เปลี่ยน (เช่น โหลดจาก DB) ก็อัปเดต
-  useEffect(() => {
-    if (!initialPlans.length) return;
-    setPlans(initialPlans);
-    onPlansChange?.(initialPlans);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(initialPlans)]);
-
-  const currentDateLabel = start.add(selectedDay - 1, 'day').format('D MMMM');
-  const currentPlan = plans.find((p) => p.day === selectedDay);
-
-  // ----- modal state (เพิ่มกิจกรรม) -----
+  // === Add activity (POST /trip_schedule) ===
   const [modalVisible, setModalVisible] = useState(false);
-  const [newTime, setNewTime] = useState<TimeSlot>('MORNING');
-  const [newDescription, setNewDescription] = useState('');
+  const [newTime, setNewTime] = useState('09:00');  // 'HH:mm'
+  const [newDesc, setNewDesc] = useState('');
 
-  const handleDeleteActivity = (slot: TimeSlot, indexToDelete: number) => {
-    const updated = structuredClone(plans);
-    const dayIndex = updated.findIndex((p) => p.day === selectedDay);
-    if (dayIndex === -1) return;
-
-    const slotItems = updated[dayIndex].items[slot] || [];
-    updated[dayIndex].items[slot] = slotItems.filter((_, idx) => idx !== indexToDelete);
-    setPlans(updated);
-    onPlansChange?.(updated);
-  };
-
-  const handleAddActivity = () => {
-    const desc = newDescription.trim();
+  const addActivity = async () => {
+    const desc = newDesc.trim();
     if (!desc) return;
 
-    const updated = structuredClone(plans);
-    let dayIndex = updated.findIndex((p) => p.day === selectedDay);
+    // แปลง 'HH:mm' -> 'HH:mm:00'
+    const hhmmss = /^\d{1,2}:\d{2}$/.test(newTime) ? `${newTime}:00` : newTime;
 
-    if (dayIndex === -1) {
-      updated.push({
-        day: selectedDay,
-        date: start.add(selectedDay - 1, 'day').format('YYYY-MM-DD'),
-        items: { [newTime]: [desc] },
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const body = {
+        plan_id: planId,
+        date: dayKeys[selectedDay - 1], // 'YYYY-MM-DD'
+        time: hhmmss,
+        activity: desc,
+        description: '',
+      };
+
+      await axios.post(`http://192.168.1.45:8000/trip_schedule`, body, {
+        headers,
+        timeout: 20000,
       });
-    } else {
-      const target = updated[dayIndex];
-      const exist = target.items[newTime] || [];
-      target.items[newTime] = [...exist, desc];
-    }
 
-    setPlans(updated);
-    onPlansChange?.(updated);
-    setNewDescription('');
-    setNewTime('MORNING');
-    setModalVisible(false);
+      setModalVisible(false);
+      setNewTime('09:00');
+      setNewDesc('');
+      // รีเฟรชจาก DB ให้ตรงกัน
+      fetchSchedules();
+    } catch (e: any) {
+      console.error('addActivity error:', e?.response?.data ?? e?.message ?? e);
+      Alert.alert('บันทึกไม่สำเร็จ', 'กรุณาลองใหม่');
+    }
   };
+
+  const current = days.find(d => d.day === selectedDay);
 
   return (
     <View>
       {/* ปุ่ม Day 1..N */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayButtonContainer}>
-        {Array.from({ length: tripDays }).map((_, i) => {
+        {dayKeys.map((key, i) => {
           const day = i + 1;
-          const date = start.add(i, 'day').format('D MMM');
+          const dateLabel = dayjs(key).format('D MMM');
           return (
             <TouchableOpacity
-              key={day}
+              key={key}
               style={[styles.dayButton, selectedDay === day && styles.dayButtonSelected]}
               onPress={() => setSelectedDay(day)}
             >
               <Text style={styles.dayButtonText}>{`Day ${day}`}</Text>
-              <Text style={styles.dayDate}>{date}</Text>
+              <Text style={styles.dayDate}>{dateLabel}</Text>
             </TouchableOpacity>
           );
         })}
+        <TouchableOpacity
+          onPress={fetchSchedules}
+          style={[styles.dayButton, { backgroundColor: '#E5F3FF' }]}
+        >
+          {loading ? <ActivityIndicator /> : <Text style={{ fontWeight: '600' }}>รีเฟรช</Text>}
+        </TouchableOpacity>
       </ScrollView>
 
-      {/* แผนประจำวัน */}
+      {/* รายการของวัน */}
       <View style={styles.planContainer}>
-        <Text style={styles.planTitle}>📅 แผนวันที่ {currentDateLabel}</Text>
+        <Text style={styles.planTitle}> {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')}</Text>
 
-        {timeSlotOrder.map((slot) => {
-          const slotItems = currentPlan?.items?.[slot] ?? [];
-          return (
-            <View key={slot} style={styles.planItem}>
-              <Text style={styles.planTime}>{slot}</Text>
-              {slotItems.length > 0 ? (
-                slotItems.map((desc, index) => (
-                  <View key={`${slot}-${index}`} style={styles.itemRow}>
-                    <Text style={styles.planText}>📝 {desc}</Text>
-                    <TouchableOpacity onPress={() => handleDeleteActivity(slot, index)}>
-                      <Text style={{ color: 'red', fontWeight: 'bold' }}>ลบ</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.planText}>-</Text>
-              )}
+        {loading && (!current || current.items.length === 0) ? (
+          <ActivityIndicator style={{ marginVertical: 12 }} />
+        ) : current && current.items.length > 0 ? (
+          current.items.map((it) => (
+            <View key={it.schedule_id} style={styles.row}>
+              <Text style={styles.time}>{it.hhmm}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activity}>{it.activity}</Text>
+                {!!it.description && <Text style={styles.desc}>{it.description}</Text>}
+              </View>
+              {/* ถ้ามี DELETE endpoint ค่อยใส่ปุ่มลบจริง ๆ ตรงนี้ */}
             </View>
-          );
-        })}
+          ))
+        ) : (
+          <Text style={{ color: '#555' }}>ยังไม่มีรายการ</Text>
+        )}
 
-        {/* ปุ่ม New List */}
-        <TouchableOpacity style={styles.newListButton} onPress={() => setModalVisible(true)}>
-          <Text style={styles.newListText}>+ New list</Text>
+        {/* ปุ่มเพิ่ม */}
+        <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
+          <Text style={styles.addBtnText}>+ เพิ่มกิจกรรม</Text>
         </TouchableOpacity>
       </View>
 
       {/* Modal เพิ่มกิจกรรม */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalBackground}>
-          <View style={styles.modalContainer}>
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalBg}>
+          <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>เพิ่มกิจกรรม</Text>
 
-            <Text style={styles.modalLabel}>Time Slot:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {timeSlotOrder.map((slot) => (
-                <TouchableOpacity
-                  key={slot}
-                  style={[styles.slotButton, newTime === slot && styles.slotSelected]}
-                  onPress={() => setNewTime(slot)}
-                >
-                  <Text>{slot}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.modalLabel}>Description:</Text>
+            <Text style={styles.modalLabel}>เวลา (HH:mm)</Text>
             <TextInput
-              style={styles.textInput}
-              placeholder="ใส่กิจกรรม..."
-              value={newDescription}
-              onChangeText={setNewDescription}
+              value={newTime}
+              onChangeText={setNewTime}
+              placeholder="เช่น 09:00"
+              keyboardType="numeric"
+              style={styles.input}
             />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Pressable style={styles.cancelButton} onPress={() => setModalVisible(false)}>
-                <Text style={{ color: 'gray' }}>ยกเลิก</Text>
+            <Text style={styles.modalLabel}>รายละเอียดกิจกรรม</Text>
+            <TextInput
+              value={newDesc}
+              onChangeText={setNewDesc}
+              placeholder="เช่น เดินชมวัด Asakusa"
+              style={styles.input}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => setModalVisible(false)}>
+                <Text style={{ color: '#555' }}>ยกเลิก</Text>
               </Pressable>
-              <Pressable style={styles.confirmButton} onPress={handleAddActivity}>
-                <Text style={{ color: 'white' }}>เพิ่ม</Text>
+              <Pressable style={[styles.btn, styles.btnPrimary]} onPress={addActivity}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>บันทึก</Text>
               </Pressable>
             </View>
           </View>
@@ -225,55 +284,7 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, DailyPlanTabsProps>(functi
 
 export default DailyPlanTabs;
 
-/* ---------- Helpers ---------- */
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(n, max));
-}
-
-function timeToSlot(timeStr: string): TimeSlot {
-  // รองรับ 'HH:mm' (24h). ถ้า parse ไม่ได้ -> MORNING
-  const m = /^(\d{1,2}):(\d{2})$/.exec(timeStr.trim());
-  if (!m) return 'MORNING';
-  const h = Number(m[1]);
-  if (h >= 5 && h <= 11) return 'MORNING';
-  if (h >= 12 && h <= 16) return 'AFTERNOON';
-  if (h >= 17 && h <= 20) return 'EVENING';
-  return 'NIGHT'; // 21-4
-}
-
-function makeEmptyPlansForTrip(start: dayjs.Dayjs, tripDays: number): DailyPlan[] {
-  return Array.from({ length: tripDays }).map((_, i) => ({
-    day: i + 1,
-    date: start.add(i, 'day').format('YYYY-MM-DD'),
-    items: {},
-  }));
-}
-
-function mapItineraryToTimeSlots(
-  start: dayjs.Dayjs,
-  tripDays: number,
-  itineraryData: Itinerary
-): DailyPlan[] {
-  const base = makeEmptyPlansForTrip(start, tripDays);
-
-  itineraryData.itinerary.forEach((d, idx) => {
-    const dayIndex = clamp(idx, 0, base.length - 1);
-    const plan = base[dayIndex];
-    // ถ้ามีวันที่จาก LLM ก็แทนให้ตรง
-    if (d.date) plan.date = d.date;
-
-    d.schedule?.forEach((s) => {
-      const slot = timeToSlot(s.time || '');
-      const label = s.time ? `${s.time} — ${s.activity}` : s.activity;
-      plan.items[slot] = [...(plan.items[slot] || []), label];
-    });
-  });
-
-  return base;
-}
-
-/* ---------- Styles ---------- */
+/* ============== Styles ============== */
 const styles = StyleSheet.create({
   dayButtonContainer: {
     flexDirection: 'row',
@@ -290,7 +301,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 70,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
@@ -318,89 +329,61 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 12,
   },
-  planItem: {
-    marginBottom: 12,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e7eb',
   },
-  planTime: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+  time: {
+    width: 60,
+    fontWeight: '700',
+    color: '#111',
   },
-  planText: {
+  activity: {
+    color: '#111',
     fontSize: 15,
-    color: '#333',
-    paddingLeft: 8,
+    marginBottom: 2,
   },
-  newListButton: {
+  desc: {
+    color: '#666',
+    fontSize: 13,
+  },
+  addBtn: {
     marginTop: 16,
     backgroundColor: '#FFD6D6',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
-  newListText: {
+  addBtnText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#D60000',
   },
-  modalBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  modalBg: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  modalContainer: {
-    width: '90%',
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
+  modalBox: {
+    width: '90%', backgroundColor: '#fff',
+    padding: 16, borderRadius: 12,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 12,
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
+  modalLabel: { fontSize: 14, marginTop: 8, marginBottom: 4 },
+  input: {
+    borderWidth: 1, borderColor: '#CCC',
+    borderRadius: 8, padding: 10,
   },
-  modalLabel: {
-    fontSize: 14,
-    marginBottom: 4,
+  btn: {
+    flex: 1, padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 12,
   },
-  slotButton: {
-    padding: 10,
-    backgroundColor: '#EEE',
-    borderRadius: 8,
-    marginRight: 8,
+  btnGhost: {
+    backgroundColor: '#F3F4F6',
   },
-  slotSelected: {
-    backgroundColor: '#4C9EF1',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#CCC',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 12,
-  },
-  cancelButton: {
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    flex: 1,
-    marginRight: 8,
-    alignItems: 'center',
-  },
-  confirmButton: {
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#4CAF50',
-    flex: 1,
-    alignItems: 'center',
-  },
-  itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-    paddingLeft: 8,
+  btnPrimary: {
+    backgroundColor: '#2563eb',
   },
 });
