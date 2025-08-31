@@ -44,6 +44,7 @@ def query_documents(num_days, months, cities, query_text, k=3):
         host="localhost",
         database="LLM",
         user="postgres",
+        password="Guyza5521"
     )
 
     cur = conn.cursor()
@@ -86,6 +87,7 @@ def get_season_data():
             "clothing": "Coats, sweaters, thick socks."
         }
     }
+
 
 
 async def query_llm(text: Item):
