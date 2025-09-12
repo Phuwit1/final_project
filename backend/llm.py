@@ -39,7 +39,7 @@ class Location(BaseModel):
     itinerary_data: Dict[str, Any]
 
     
-def query_documents(num_days, months, cities, query_text, k=1):
+def query_documents(num_days, months, cities, query_text, k=3):
     conn = psycopg2.connect(
         host="localhost",
         database="LLM",

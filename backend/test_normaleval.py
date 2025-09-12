@@ -212,7 +212,8 @@ def main():
     
     # Example trip plans for evaluation
     reference_plans = [
-        """{
+        """
+        {
     "itinerary": [
         {
             "date": "2025-03-02",
@@ -220,33 +221,27 @@ def main():
             "schedule": [
                 {
                     "time": "14:00",
-                    "activity": "Arrive at Narita International Airport (NRT) or Haneda International Airport (HND), Tokyo",
-                    "lat": 35.773,
-                    "lng": 140.3929
+                    "activity": "Arrive at Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "15:30",
-                    "activity": "Arrival transfer to hotel in Tokyo (Remm Akihabara or similar)",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "activity": "Transfer to hotel and check-in",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "16:30",
-                    "activity": "Check-in and rest at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Dinner and leisure in Akihabara district",
-                    "lat": 35.6993,
-                    "lng": 139.774
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Return to hotel and overnight rest",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "time": "18:00",
+                    "activity": "Rest at hotel and prepare for the tour starting tomorrow",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -256,57 +251,51 @@ def main():
             "schedule": [
                 {
                     "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "activity": "Visit Tsukiji Fish Market",
+                    "need_location": true,
+                    "specific_location_name": "Tsukiji Fish Market",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "09:30",
-                    "activity": "Visit Pokémon Center, Sunshine City, Ikebukuro",
-                    "lat": 35.7296,
-                    "lng": 139.7194
-                },
-                {
-                    "time": "11:00",
-                    "activity": "Explore Jump Shop, Shibuya",
-                    "lat": 35.6618,
-                    "lng": 139.704
+                    "time": "10:30",
+                    "activity": "Explore Sensoji Temple",
+                    "need_location": true,
+                    "specific_location_name": "Sensoji Temple",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "12:30",
-                    "activity": "Lunch near Nintendo Tokyo, Shibuya",
-                    "lat": 35.6623,
-                    "lng": 139.7005
+                    "activity": "Enjoy seasonal Japanese lunch",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "14:00",
-                    "activity": "Visit Capcom Store, Shinjuku",
-                    "lat": 35.69384,
-                    "lng": 139.7036
+                    "activity": "Experience Shibuya Scramble Crossing and photograph Shibuya Hachiko Statue",
+                    "need_location": true,
+                    "specific_location_name": "Shibuya Hachiko Statue",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "15:30",
-                    "activity": "Shopping at Nakano Broadway",
-                    "lat": 35.7074,
-                    "lng": 139.6652
+                    "time": "16:00",
+                    "activity": "Visit teamLab Planets TOKYO immersive digital art museum",
+                    "need_location": true,
+                    "specific_location_name": "teamLab Planets TOKYO",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "17:30",
-                    "activity": "Visit Ghibli Museum, Mitaka",
-                    "lat": 35.6961,
-                    "lng": 139.5703
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Explore Akihabara district, including Animate and Tamashii Nations Store",
-                    "lat": 35.6993,
-                    "lng": 139.774
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Return to hotel for overnight stay",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "time": "18:30",
+                    "activity": "Return to hotel and evening at leisure",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -315,58 +304,60 @@ def main():
             "day": "Day 3",
             "schedule": [
                 {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
-                },
-                {
-                    "time": "09:30",
-                    "activity": "Visit Fukagawa Edo Museum, Koto, Tokyo",
-                    "lat": 35.6743,
-                    "lng": 139.7967
+                    "time": "09:00",
+                    "activity": "Tour the Ghibli Museum in Mitaka",
+                    "need_location": true,
+                    "specific_location_name": "Ghibli Museum",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "11:30",
-                    "activity": "Explore Tsukiji Outer Market",
-                    "lat": 35.6671,
-                    "lng": 139.7702
+                    "activity": "Explore Nakano Broadway shopping complex",
+                    "need_location": true,
+                    "specific_location_name": "Nakano Broadway",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "13:00",
-                    "activity": "Visit Asakusa district and Sensoji Temple",
-                    "lat": 35.7148,
-                    "lng": 139.7967
+                    "activity": "Lunch at a famous ramen shop",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "15:00",
-                    "activity": "Shopping and snacks at Nakamise Shopping Street",
-                    "lat": 35.7144,
-                    "lng": 139.7967
+                    "time": "14:30",
+                    "activity": "Visit Pokemon Center and Pikachu Sweets Cafe in Ikebukuro",
+                    "need_location": true,
+                    "specific_location_name": "Pokemon Center",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "16:30",
-                    "activity": "Visit Shibuya Scramble Crossing and Hachiko Statue",
-                    "lat": 35.6595,
-                    "lng": 139.7004
+                    "time": "16:00",
+                    "activity": "Shop at Animate Ikebukuro and Mugiwara Store",
+                    "need_location": true,
+                    "specific_location_name": "Animate Ikebukuro",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "18:00",
-                    "activity": "Explore Harajuku Takeshita Street",
-                    "lat": 35.6702,
-                    "lng": 139.702
+                    "time": "17:30",
+                    "activity": "Explore Akihabara area: Tamashii Nations Store Tokyo, Super Potato, Maid Cafe",
+                    "need_location": true,
+                    "specific_location_name": "Akihabara",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "19:30",
-                    "activity": "Dinner and try Tokyo Banana sweets",
-                    "lat": 35.6702,
-                    "lng": 139.702
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Return to hotel for overnight",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "activity": "Return to hotel and rest",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -375,58 +366,28 @@ def main():
             "day": "Day 4",
             "schedule": [
                 {
-                    "time": "07:00",
-                    "activity": "Breakfast at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
-                },
-                {
                     "time": "08:00",
-                    "activity": "Depart Tokyo by Shinkansen to Kyoto",
-                    "lat": 35.6812,
-                    "lng": 139.7671
+                    "activity": "Breakfast at hotel",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "10:30",
-                    "activity": "Arrive in Kyoto, visit Kaiten Sushi restaurant for lunch",
-                    "lat": 35.0116,
-                    "lng": 135.7681
-                },
-                {
-                    "time": "12:00",
-                    "activity": "Visit Todaiji Temple, Nara",
-                    "lat": 34.6851,
-                    "lng": 135.8448
-                },
-                {
-                    "time": "14:00",
-                    "activity": "Explore Nara Deer Park",
-                    "lat": 34.6852,
-                    "lng": 135.8434
-                },
-                {
-                    "time": "15:30",
-                    "activity": "Visit Fushimi Inari Shrine",
-                    "lat": 34.9671,
-                    "lng": 135.7727
-                },
-                {
-                    "time": "17:30",
-                    "activity": "Try Inari Sushi at local recommended restaurant",
-                    "lat": 34.9671,
-                    "lng": 135.7727
+                    "time": "09:00",
+                    "activity": "Free day at leisure to explore Tokyo or optional tours (e.g., Tokyo Disneyland, DisneySea, Sanrio Puroland)",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "19:00",
-                    "activity": "Enjoy Kyoto Station Light Show",
-                    "lat": 34.9858,
-                    "lng": 135.7585
-                },
-                {
-                    "time": "20:00",
-                    "activity": "Check in at Vischio Kyoto Hotel By GRANVIA or similar",
-                    "lat": 34.9858,
-                    "lng": 135.7585
+                    "activity": "Return to hotel",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -435,52 +396,36 @@ def main():
             "day": "Day 5",
             "schedule": [
                 {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "lat": 34.9858,
-                    "lng": 135.7585
+                    "time": "09:00",
+                    "activity": "Visit AnimeJapan Festival",
+                    "need_location": true,
+                    "specific_location_name": "AnimeJapan",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "09:30",
-                    "activity": "Walk through Arashiyama Bamboo Grove",
-                    "lat": 35.0094,
-                    "lng": 135.6662
-                },
-                {
-                    "time": "10:30",
-                    "activity": "Jinrikisha (Rickshaw) ride in Arashiyama",
-                    "lat": 35.0094,
-                    "lng": 135.6662
-                },
-                {
-                    "time": "12:00",
-                    "activity": "Visit Golden Pavilion (Kinkakuji Temple)",
-                    "lat": 35.0394,
-                    "lng": 135.7292
-                },
-                {
-                    "time": "13:30",
-                    "activity": "Matcha Tea Ceremony Experience",
-                    "lat": 35.0313,
-                    "lng": 135.7681
+                    "time": "13:00",
+                    "activity": "Explore Gundam Base Tokyo in Odaiba",
+                    "need_location": true,
+                    "specific_location_name": "Gundam Base Tokyo",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "15:00",
-                    "activity": "Lunch - recommended local ramen",
-                    "lat": 35.0313,
-                    "lng": 135.7681
+                    "activity": "Visit Small Worlds Tokyo exhibition",
+                    "need_location": true,
+                    "specific_location_name": "Small Worlds Tokyo",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "17:00",
-                    "activity": "Visit Ninenzaka Street",
-                    "lat": 35.0036,
-                    "lng": 135.7787
-                },
-                {
-                    "time": "18:30",
-                    "activity": "Return to hotel for rest",
-                    "lat": 34.9858,
-                    "lng": 135.7585
+                    "activity": "Return to hotel and prepare for departure",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -489,74 +434,32 @@ def main():
             "day": "Day 6",
             "schedule": [
                 {
-                    "time": "07:30",
-                    "activity": "Breakfast at hotel",
-                    "lat": 34.9858,
-                    "lng": 135.7585
-                },
-                {
-                    "time": "08:30",
-                    "activity": "Travel by bullet train to Osaka",
-                    "lat": 34.9858,
-                    "lng": 135.7585
-                },
-                {
-                    "time": "09:30",
-                    "activity": "Visit Universal Studios Japan",
-                    "lat": 34.6643,
-                    "lng": 135.4323
-                },
-                {
-                    "time": "17:00",
-                    "activity": "Explore Super Nintendo World within Universal Studios",
-                    "lat": 34.6636,
-                    "lng": 135.4333
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Dinner and leisure in Universal Wonderland area",
-                    "lat": 34.664,
-                    "lng": 135.4327
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Check-in at Hotel Universal Port Vita or similar",
-                    "lat": 34.6633,
-                    "lng": 135.4342
-                }
-            ]
-        },
-        {
-            "date": "2025-03-08",
-            "day": "Day 7",
-            "schedule": [
-                {
                     "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "lat": 34.6633,
-                    "lng": 135.4342
+                    "activity": "Breakfast and check-out",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "09:30",
-                    "activity": "Check-out and departure transfer to Kansai International Airport (KIX) or Osaka International Itami Airport (ITM)",
-                    "lat": 34.4347,
-                    "lng": 135.244
-                },
-                {
-                    "time": "11:00",
-                    "activity": "Flight departure from Japan",
-                    "lat": 34.4347,
-                    "lng": 135.244
+                    "time": "10:00",
+                    "activity": "Departure transfer to Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         }
     ],
-    "comments": "The itinerary is scheduled during early March, which is suitable for experiencing early spring in Japan. Tokyo and Kyoto may begin seeing early plum blossoms and possibly early cherry blossoms by late March, so the weather will be cool with layering recommended (light jackets and sweaters). The distances and travel times between cities such as Tokyo, Kyoto, and Osaka are manageable with efficient Shinkansen travel. Activities balance modern and traditional Japanese culture with ample time for rest and local cuisine. Early March weather in these regions can be chilly, especially in mornings and evenings."
-}"""
+    "comments": "The trip takes place in early March, which is the beginning of spring in Japan. While cherry blossoms start blooming mostly from late March to early April in Tokyo, early March might be a little early for full cherry blossom viewing but you can still enjoy early plum blossoms and the beginnings of spring scenery. The weather is cool, suitable for layered clothing with light jackets and sweaters. The itinerary is designed around Tokyo's anime culture and includes manageable travel distances within Tokyo with one free day for optional exploration or rest. Travel times between locations are reasonable to ensure a comfortable pace."
+}
+"""
     ]
     
     generated_plans = [
-        """{
+        """
+        {
     "itinerary": [
         {
             "date": "2025-03-02",
@@ -564,33 +467,35 @@ def main():
             "schedule": [
                 {
                     "time": "14:00",
-                    "activity": "Arrive at Narita International Airport (NRT) or Haneda International Airport (HND), Tokyo",
-                    "lat": 35.773,
-                    "lng": 140.3929
+                    "activity": "Arrive at Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "15:30",
-                    "activity": "Arrival transfer to hotel in Tokyo (Remm Akihabara or similar)",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "activity": "Arrival Transfer to hotel in downtown Tokyo",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "16:30",
-                    "activity": "Check-in and rest at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "time": "17:00",
+                    "activity": "Check-in Tobu Hotel Levant Tokyo or similar",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "19:00",
-                    "activity": "Dinner and leisure in Akihabara district",
-                    "lat": 35.6993,
-                    "lng": 139.774
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Return to hotel and overnight rest",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "activity": "Hotel rest time and leisure",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -601,56 +506,74 @@ def main():
                 {
                     "time": "08:00",
                     "activity": "Breakfast at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "09:30",
-                    "activity": "Visit Pokémon Center, Sunshine City, Ikebukuro",
-                    "lat": 35.7296,
-                    "lng": 139.7194
+                    "time": "09:00",
+                    "activity": "Explore Tsukiji Fish Market",
+                    "need_location": true,
+                    "specific_location_name": "Tsukiji Fish Market",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "11:00",
-                    "activity": "Explore Jump Shop, Shibuya",
-                    "lat": 35.6618,
-                    "lng": 139.704
+                    "activity": "Visit Sensoji Temple in Asakusa",
+                    "need_location": true,
+                    "specific_location_name": "Sensoji Temple",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "12:30",
-                    "activity": "Lunch near Nintendo Tokyo, Shibuya",
-                    "lat": 35.6623,
-                    "lng": 139.7005
+                    "activity": "Lunch - Seasonal Japanese meal",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "14:00",
-                    "activity": "Visit Capcom Store, Shinjuku",
-                    "lat": 35.69384,
-                    "lng": 139.7036
+                    "activity": "Walk Nakamise-dori shopping street",
+                    "need_location": true,
+                    "specific_location_name": "Nakamise-dori",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "15:30",
-                    "activity": "Shopping at Nakano Broadway",
-                    "lat": 35.7074,
-                    "lng": 139.6652
+                    "activity": "Visit Shibuya Scramble Crossing",
+                    "need_location": true,
+                    "specific_location_name": "Shibuya Scramble Crossing",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "17:30",
-                    "activity": "Visit Ghibli Museum, Mitaka",
-                    "lat": 35.6961,
-                    "lng": 139.5703
+                    "time": "16:00",
+                    "activity": "Photo at Shibuya Hachiko Statue",
+                    "need_location": true,
+                    "specific_location_name": "Hachiko Statue",
+                    "lat": null,
+                    "lng": null
+                },
+                {
+                    "time": "17:00",
+                    "activity": "Visit teamLab Planets TOKYO",
+                    "need_location": true,
+                    "specific_location_name": "teamLab Planets TOKYO",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "19:00",
-                    "activity": "Explore Akihabara district, including Animate and Tamashii Nations Store",
-                    "lat": 35.6993,
-                    "lng": 139.774
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Return to hotel for overnight stay",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "activity": "Return to hotel",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -661,56 +584,82 @@ def main():
                 {
                     "time": "08:00",
                     "activity": "Breakfast at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "09:30",
-                    "activity": "Visit Fukagawa Edo Museum, Koto, Tokyo",
-                    "lat": 35.6743,
-                    "lng": 139.7967
+                    "time": "09:00",
+                    "activity": "Visit Ghibli Museum in Mitaka",
+                    "need_location": true,
+                    "specific_location_name": "Ghibli Museum",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "11:30",
-                    "activity": "Explore Tsukiji Outer Market",
-                    "lat": 35.6671,
-                    "lng": 139.7702
+                    "time": "11:00",
+                    "activity": "Explore Nakano Broadway shopping complex",
+                    "need_location": true,
+                    "specific_location_name": "Nakano Broadway",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "13:00",
-                    "activity": "Visit Asakusa district and Sensoji Temple",
-                    "lat": 35.7148,
-                    "lng": 139.7967
+                    "time": "12:30",
+                    "activity": "Lunch at a famous ramen shop",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
+                },
+                {
+                    "time": "14:00",
+                    "activity": "Visit Pokémon Center Mega Tokyo",
+                    "need_location": true,
+                    "specific_location_name": "Pokémon Center Mega Tokyo",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "15:00",
-                    "activity": "Shopping and snacks at Nakamise Shopping Street",
-                    "lat": 35.7144,
-                    "lng": 139.7967
+                    "activity": "Enjoy sweets at Pikachu Sweets Cafe",
+                    "need_location": true,
+                    "specific_location_name": "Pikachu Sweets Cafe",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "16:30",
-                    "activity": "Visit Shibuya Scramble Crossing and Hachiko Statue",
-                    "lat": 35.6595,
-                    "lng": 139.7004
+                    "time": "16:00",
+                    "activity": "Shop at Animate Ikebukuro",
+                    "need_location": true,
+                    "specific_location_name": "Animate Ikebukuro",
+                    "lat": null,
+                    "lng": null
+                },
+                {
+                    "time": "17:00",
+                    "activity": "Visit Tamashii Nations Store Tokyo in Akihabara",
+                    "need_location": true,
+                    "specific_location_name": "Tamashii Nations Store Tokyo",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "18:00",
-                    "activity": "Explore Harajuku Takeshita Street",
-                    "lat": 35.6702,
-                    "lng": 139.702
+                    "activity": "Stop by Super Potato retro game shop",
+                    "need_location": true,
+                    "specific_location_name": "Super Potato",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "19:30",
-                    "activity": "Dinner and try Tokyo Banana sweets",
-                    "lat": 35.6702,
-                    "lng": 139.702
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Return to hotel for overnight",
-                    "lat": 35.69868,
-                    "lng": 139.77311
+                    "time": "19:00",
+                    "activity": "Return to hotel",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -719,58 +668,28 @@ def main():
             "day": "Day 4",
             "schedule": [
                 {
-                    "time": "07:00",
-                    "activity": "Breakfast at hotel",
-                    "lat": 35.69868,
-                    "lng": 139.77311
-                },
-                {
                     "time": "08:00",
-                    "activity": "Depart Tokyo by Shinkansen to Kyoto",
-                    "lat": 35.6812,
-                    "lng": 139.7671
+                    "activity": "Breakfast at hotel",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "10:30",
-                    "activity": "Arrive in Kyoto, visit Kaiten Sushi restaurant for lunch",
-                    "lat": 35.0116,
-                    "lng": 135.7681
-                },
-                {
-                    "time": "12:00",
-                    "activity": "Visit Todaiji Temple, Nara",
-                    "lat": 34.6851,
-                    "lng": 135.8448
-                },
-                {
-                    "time": "14:00",
-                    "activity": "Explore Nara Deer Park",
-                    "lat": 34.6852,
-                    "lng": 135.8434
-                },
-                {
-                    "time": "15:30",
-                    "activity": "Visit Fushimi Inari Shrine",
-                    "lat": 34.9671,
-                    "lng": 135.7727
-                },
-                {
-                    "time": "17:30",
-                    "activity": "Try Inari Sushi at local recommended restaurant",
-                    "lat": 34.9671,
-                    "lng": 135.7727
+                    "time": "09:00",
+                    "activity": "Free day at your own leisure to explore Tokyo or visit optional attractions such as Tokyo Disneyland or DisneySea, Sailor Moon Store, Harajuku Kiddy Land",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "19:00",
-                    "activity": "Enjoy Kyoto Station Light Show",
-                    "lat": 34.9858,
-                    "lng": 135.7585
-                },
-                {
-                    "time": "20:00",
-                    "activity": "Check in at Vischio Kyoto Hotel By GRANVIA or similar",
-                    "lat": 34.9858,
-                    "lng": 135.7585
+                    "activity": "Return to hotel",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -781,50 +700,42 @@ def main():
                 {
                     "time": "08:00",
                     "activity": "Breakfast at hotel",
-                    "lat": 34.9858,
-                    "lng": 135.7585
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "09:30",
-                    "activity": "Walk through Arashiyama Bamboo Grove",
-                    "lat": 35.0094,
-                    "lng": 135.6662
+                    "time": "09:00",
+                    "activity": "Visit AnimeJapan Festival",
+                    "need_location": true,
+                    "specific_location_name": "AnimeJapan Festival",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "10:30",
-                    "activity": "Jinrikisha (Rickshaw) ride in Arashiyama",
-                    "lat": 35.0094,
-                    "lng": 135.6662
-                },
-                {
-                    "time": "12:00",
-                    "activity": "Visit Golden Pavilion (Kinkakuji Temple)",
-                    "lat": 35.0394,
-                    "lng": 135.7292
-                },
-                {
-                    "time": "13:30",
-                    "activity": "Matcha Tea Ceremony Experience",
-                    "lat": 35.0313,
-                    "lng": 135.7681
+                    "time": "13:00",
+                    "activity": "Explore Gundam Base Tokyo in Odaiba",
+                    "need_location": true,
+                    "specific_location_name": "Gundam Base Tokyo",
+                    "lat": null,
+                    "lng": null
                 },
                 {
                     "time": "15:00",
-                    "activity": "Lunch - recommended local ramen",
-                    "lat": 35.0313,
-                    "lng": 135.7681
+                    "activity": "Visit Small Worlds Tokyo",
+                    "need_location": true,
+                    "specific_location_name": "Small Worlds Tokyo",
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "17:00",
-                    "activity": "Visit Ninenzaka Street",
-                    "lat": 35.0036,
-                    "lng": 135.7787
-                },
-                {
-                    "time": "18:30",
-                    "activity": "Return to hotel for rest",
-                    "lat": 34.9858,
-                    "lng": 135.7585
+                    "time": "18:00",
+                    "activity": "Return to hotel",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         },
@@ -833,70 +744,27 @@ def main():
             "day": "Day 6",
             "schedule": [
                 {
-                    "time": "07:30",
-                    "activity": "Breakfast at hotel",
-                    "lat": 34.9858,
-                    "lng": 135.7585
-                },
-                {
-                    "time": "08:30",
-                    "activity": "Travel by bullet train to Osaka",
-                    "lat": 34.9858,
-                    "lng": 135.7585
-                },
-                {
-                    "time": "09:30",
-                    "activity": "Visit Universal Studios Japan",
-                    "lat": 34.6643,
-                    "lng": 135.4323
-                },
-                {
-                    "time": "17:00",
-                    "activity": "Explore Super Nintendo World within Universal Studios",
-                    "lat": 34.6636,
-                    "lng": 135.4333
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Dinner and leisure in Universal Wonderland area",
-                    "lat": 34.664,
-                    "lng": 135.4327
-                },
-                {
-                    "time": "21:00",
-                    "activity": "Check-in at Hotel Universal Port Vita or similar",
-                    "lat": 34.6633,
-                    "lng": 135.4342
-                }
-            ]
-        },
-        {
-            "date": "2025-03-08",
-            "day": "Day 7",
-            "schedule": [
-                {
                     "time": "08:00",
                     "activity": "Breakfast at hotel",
-                    "lat": 34.6633,
-                    "lng": 135.4342
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 },
                 {
-                    "time": "09:30",
-                    "activity": "Check-out and departure transfer to Kansai International Airport (KIX) or Osaka International Itami Airport (ITM)",
-                    "lat": 34.4347,
-                    "lng": 135.244
-                },
-                {
-                    "time": "11:00",
-                    "activity": "Flight departure from Japan",
-                    "lat": 34.4347,
-                    "lng": 135.244
+                    "time": "10:00",
+                    "activity": "Departure transfer to Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
+                    "need_location": false,
+                    "specific_location_name": null,
+                    "lat": null,
+                    "lng": null
                 }
             ]
         }
     ],
-    "comments": "The itinerary is scheduled during early March, which is suitable for experiencing early spring in Japan. Tokyo and Kyoto may begin seeing early plum blossoms and possibly early cherry blossoms by late March, so the weather will be cool with layering recommended (light jackets and sweaters). The distances and travel times between cities such as Tokyo, Kyoto, and Osaka are manageable with efficient Shinkansen travel. Activities balance modern and traditional Japanese culture with ample time for rest and local cuisine. Early March weather in these regions can be chilly, especially in mornings and evenings."
-}"""
+    "comments": "The travel period is early March, which aligns well with the beginning of cherry blossom season in Tokyo; some early blooms may be visible especially later in the period. The itinerary distances are manageable within Tokyo and Odaiba areas with transit times considered. Activities are balanced with cultural, anime-related, and leisure time, suitable for spring weather with light jackets advised as temperatures can be cool in March."
+}
+"""
     ]
     
     print("=== Single Pair Evaluation ===")
