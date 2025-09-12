@@ -39,12 +39,12 @@ class Location(BaseModel):
     itinerary_data: Dict[str, Any]
 
     
-def query_documents(num_days, months, cities, query_text, k=3):
+def query_documents(num_days, months, cities, query_text, k=1):
     conn = psycopg2.connect(
         host="localhost",
         database="LLM",
         user="postgres",
-        password="password"
+        password=os.getenv("DB_PASSWORD")
     )
 
     cur = conn.cursor()
@@ -89,7 +89,7 @@ def get_season_data():
     }
 
 
-@app.post("/llm/")
+
 async def query_llm(text: Item):
     date_start_str = text.start_date
     date_end_str = text.end_date
@@ -225,8 +225,8 @@ async def query_llm(text: Item):
 
     return data
 
-@app.post("/llm/fix/")
-def query_llm_fix(text: FixRequest):
+
+async def query_llm_fix(text: FixRequest):
     
     date_start_str = text.start_date
     date_end_str = text.end_date
