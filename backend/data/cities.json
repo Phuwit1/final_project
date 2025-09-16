@@ -1,0 +1,17 @@
+[
+  { "id": 1,  "name": "Tokyo"},
+  { "id": 2,  "name": "Kyoto"},
+  { "id": 3,  "name": "Osaka"},
+  { "id": 4,  "name": "Nara"},
+  { "id": 5,  "name": "Hakone"},
+  { "id": 6,  "name": "Yokohama"},
+  { "id": 7,  "name": "Kamakura"},
+  { "id": 8,  "name": "Sapporo"},
+  { "id": 9,  "name": "Nagoya"},
+  { "id": 10, "name": "Fukuoka"},
+  { "id": 11, "name": "Kobe" },
+  { "id": 12, "name": "Hiroshima"},
+  { "id": 13, "name": "Nagasaki"},
+  { "id": 14, "name": "Sendai"},
+  { "id": 15, "name": "Kanazawa"}
+]

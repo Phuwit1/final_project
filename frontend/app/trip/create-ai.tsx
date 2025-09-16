@@ -1,8 +1,8 @@
 // app/trip/ai-create.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image, FlatList
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image, FlatList, Modal, Pressable
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
@@ -32,7 +32,6 @@ type TripScheduleIn = {
 type City = {
   id: number;
   name: string;
-  image_url?: string;
 };
 
 const toHHmmss = (t?: string) => {
@@ -68,6 +67,10 @@ export default function AICreateTrip() {
   const [cities, setCities] = useState<City[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
 
+  const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
+  const [loadingCities, setLoadingCities] = useState(false);
+
   // วันที่เริ่ม/จบ (ห้ามย้อนหลัง, end ≥ start)
   const today = new Date(); today.setHours(0,0,0,0);
   const [startDate, setStartDate] = useState<Date>(today);
@@ -100,29 +103,50 @@ export default function AICreateTrip() {
     }
   };
 
-  useEffect(() => {
-    const fetchCities = async () => {
-      try {
-        const token = await AsyncStorage.getItem('access_token');
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
+const toggleCity = (name: string) => {
+  setSelectedCities(prev =>
+    prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+  );
+};
 
-        const res = await axios.get(`${API_BASE}/cities`, { headers });
-        setCities(res.data ?? []);
-      } catch (e) {
-        console.error("fetch cities error", e);
-      }
-    };
-    fetchCities();
-  }, []);
+// filter รายชื่อเมืองตามช่องค้นหา (ฝั่ง client)
+const filteredCities = useMemo(() => {
+  const q = citySearch.trim().toLowerCase();
+  if (!q) return cities;
+  return cities.filter(c => c.name.toLowerCase().includes(q));
+}, [cities, citySearch]);
 
-   const toggleCity = (city: string) => {
-    setSelectedCities(prev =>
-      prev.includes(city)
-        ? prev.filter(c => c !== city)   // ถ้าเลือกแล้ว → เอาออก
-        : [...prev, city]                // ถ้ายังไม่เลือก → เพิ่มเข้าไป
-    );
-  }
+
+const CITIES_ENDPOINT = `${API_BASE}/cities`; // หรือ /cities
+
+useEffect(() => {
+  let mounted = true;
+  (async () => {
+    try {
+      setLoadingCities(true);
+      const token = await AsyncStorage.getItem('access_token');
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await axios.get(CITIES_ENDPOINT, { headers, timeout: 15000 });
+      
+      const rows = Array.isArray(res.data) ? res.data : res.data?.items ?? [];
+      const normalized: City[] = rows.map((c: any) => ({
+        id: Number(c.id),
+        name: String(c.name),
+      })).filter(x => Number.isFinite(x.id) && x.name);
+
+      if (mounted) setCities(normalized);
+    } catch (e) {
+      console.error('Load cities error:', e);
+      if (mounted) Alert.alert('โหลดรายชื่อเมืองไม่สำเร็จ', 'ลองใหม่อีกครั้ง');
+    } finally {
+      if (mounted) setLoadingCities(false);
+    }
+  })();
+  return () => { mounted = false; };
+}, []);
+
 
 const onCreateWithAI = async () => {
   try {
@@ -179,17 +203,16 @@ const onCreateWithAI = async () => {
       ? JSON.parse(llm.data)
       : llm.data;
 
-    // 3) บันทึก itinerary (ทั้งก้อน JSON) ลง DB
+
     await axios.post(
       `${API_BASE}/trip_schedule`,
       {
         plan_id: planId,
-        payload: data,   // ✅ ส่ง JSON ตรงๆ
+        payload: data, 
       },
       { headers, timeout: 45000 }
     );
 
-    // 4) ไปหน้า Trip detail
     Alert.alert('สำเร็จ', `สร้างทริปและแผนรายวันด้วย AI แล้ว`, [
       {
         text: 'ดูแผน',
@@ -227,30 +250,83 @@ const onCreateWithAI = async () => {
         </View>
 
         <View style={styles.field}>
-         <Text style={styles.label}>เลือกเมือง</Text>
-          {cities.length === 0 ? (
-            <ActivityIndicator />
-          ) : (
-            <FlatList
-              data={cities}
-              horizontal
-              keyExtractor={(item, index) => item.id ? String(item.id) : `city-${index}`}
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item }) => {
-                const isSelected = selectedCities.includes(item.name);
-                return (
-                  <TouchableOpacity
-                    onPress={() => toggleCity(item.name)}
-                    style={[styles.card, isSelected && styles.cardSelected]}
-                  >
-                    <Image source={{ uri: item.image_url }} style={styles.image} />
-                    <Text style={styles.cardText}>{item.name}</Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
+          <Text style={styles.label}>เลือกเมือง</Text>
+
+          {/* ปุ่มเปิด Modal */}
+          <TouchableOpacity style={styles.selectBtn} onPress={() => setCityModalVisible(true)}>
+            <Text style={styles.selectBtnText}>
+              {selectedCities.length > 0 ? selectedCities.join(', ') : 'เลือกหลายเมือง'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* แสดง chips เมืองที่เลือก */}
+          {selectedCities.length > 0 && (
+            <View style={styles.chipsRow}>
+              {selectedCities.map(name => (
+                <View key={name} style={styles.chip}>
+                  <Text style={styles.chipText}>{name}</Text>
+                </View>
+              ))}
+            </View>
           )}
+        </View>
+
+
+        <Modal visible={cityModalVisible} animationType="slide" transparent>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>เลือกเมือง</Text>
+
+              {/* ช่องค้นหา */}
+              <TextInput
+                placeholder="ค้นหาเมือง..."
+                value={citySearch}
+                onChangeText={setCitySearch}
+                style={styles.searchInput}
+              />
+
+              {/* รายการเมือง + เช็คบ็อกซ์ */}
+              {loadingCities ? (
+                <ActivityIndicator style={{ marginVertical: 16 }} />
+              ) : (
+                <FlatList
+                  data={filteredCities}
+                  keyExtractor={(item) => String(item.id)}
+                  keyboardShouldPersistTaps="handled"
+                  style={{ maxHeight: 320 }}
+                  ListEmptyComponent={
+                    <Text style={{ textAlign: 'center', paddingVertical: 16, color: '#666' }}>
+                      ไม่พบเมืองที่ค้นหา
+                    </Text>
+                  }
+                  renderItem={({ item }) => {
+                    const checked = selectedCities.includes(item.name);
+                    return (
+                      <Pressable onPress={() => toggleCity(item.name)} style={styles.cityRow}>
+                        <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+                          {checked && <Text style={styles.checkboxTick}>✓</Text>}
+                        </View>
+                        <Text style={styles.cityName}>{item.name}</Text>
+                      </Pressable>
+                    );
+                  }}
+                />
+              )}
+
+              {/* ปุ่มปิด/ยืนยัน */}
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                <TouchableOpacity style={[styles.modalBtn, styles.modalCancel]} onPress={() => setCityModalVisible(false)}>
+                  <Text style={styles.modalBtnText}>ปิด</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtn, styles.modalApply]} onPress={() => setCityModalVisible(false)}>
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>ยืนยัน</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
+        </Modal>
+
+
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1 }]}>
@@ -329,4 +405,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+   selectBtn: {
+    borderWidth: 1, borderColor: '#ddd', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#fff',
+  },
+  selectBtnText: { color: '#333' },
+
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  chip: { backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  chipText: { color: '#334155' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  searchInput: {
+    borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10,
+    backgroundColor: '#fff',
+  },
+  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 4 },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#cbd5e1',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff',
+  },
+  checkboxChecked: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
+  checkboxTick: { color: '#fff', fontWeight: '900', lineHeight: 18 },
+  cityName: { fontSize: 16, color: '#111827' },
+  modalBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb' },
+  modalCancel: { backgroundColor: '#fff' },
+  modalApply: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
+  modalBtnText: { fontWeight: '700' },
 });
