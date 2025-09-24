@@ -48,7 +48,7 @@ export default function Home(){
             <View style={styles.imageOverlay} />
 
               <View style={styles.overlayContent}>
-                <Text style={styles.welcomeText}>Welcome, {user?.first_name || "ไม่มี"} {user?.last_name || "ไม่มี"} </Text> {/* 👈 Change "John" dynamically if needed */}
+                <Text style={styles.welcomeText}>Welcome, {user?.first_name || "ไม่มี"} {user?.last_name || "ไม่มี"} </Text>
                 
                 <CurrentCard />
               </View>
@@ -99,10 +99,7 @@ export default function Home(){
             </>
           </View>
         </View>
-        
-
-
-
+      
       </ParallaxScrollView>
         
     )

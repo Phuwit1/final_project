@@ -62,30 +62,7 @@ export default function TabLayout() {
           }}
         />
       
-        <Tabs.Screen
-          name="Createtrip"
-          options={{
-            href: null
-          }}
-        />
-        <Tabs.Screen
-          name="Hometrip"
-          options={{
-            href: null
-          }}
-        />
-        <Tabs.Screen
-          name="Register"
-          options={{
-            href: null
-          }}
-        />
-        <Tabs.Screen
-          name="Login"
-          options={{
-            href: null
-          }}
-        />
+        
       </Tabs>
 
       <View style={styles.fabContainer}>

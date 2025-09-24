@@ -17,16 +17,29 @@ import re, os, json, psycopg2
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
+from contextlib import asynccontextmanager
 
 
 
 load_dotenv()
-app = FastAPI()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- startup ---
+    load_cities_data()
+    yield
+    # --- shutdown ---
+    cities_data.clear()
+
+app = FastAPI(lifespan=lifespan)
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8002, reload=True)
 
 # class for request model
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +48,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 class Customer(BaseModel):
     first_name: str
@@ -101,6 +115,7 @@ class CustomerOut(BaseModel):
 
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
+
 
 
 # --- Middleware ---
@@ -1032,22 +1047,29 @@ async def ai_chat(body: ChatBody):
     return {"reply": "นี่คือร่างแผนทริปค่ะ", "itinerary": generated}
 
 
-@app.get("/cities")
-async def get_cities(db: Prisma = Depends(get_db)):
-    try:
-        cities = await db.city.find_many()
-        
-        # Filter fields in Python if needed
-        filtered_cities = [
-            {
-                "city_id": city.city_id,
-                "name": city.name,
-                "image_url": city.image_url
-            }
-            for city in cities
-        ]
-        return filtered_cities
-        
-    except Exception as e:
-        return {"error": str(e)}
+class City(BaseModel):
+    id: int
+    name: str
+
+cities_data: List[City] = []
+
+def load_cities_data():
+    """Load cities data from JSON file on startup"""
+    global cities_data
+    file_path = "data/cities.json"
     
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+                cities_data = [City(**city) for city in data]
+        else:
+            print(f"Warning: {file_path} not found. Using empty cities list.")
+            cities_data = []
+    except Exception as e:
+        print(f"Error loading cities data: {e}")
+        cities_data = []
+
+@app.get("/cities")
+def get_cities():
+    return {"items": [c.model_dump() for c in cities_data], "total": len(cities_data)}
