@@ -4,6 +4,7 @@ pip install -U sentence-transformers <br>
 ollama <br> 
 pip install python-dotenv <br>
 pip install openai
+pip install tavily-python
 
 pip install prisma
 pip install xlrd // pip install pandas // pip install openpyxl //to pandas read xlxs

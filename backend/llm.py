@@ -5,11 +5,9 @@ from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 from dotenv import load_dotenv
 from datetime import datetime
-import requests
-import psycopg2
-import json
-import os
-import urllib.parse
+from tavily import TavilyClient
+import requests, psycopg2, json, os, math, urllib.parse
+
 
 
 load_dotenv()
@@ -21,6 +19,7 @@ load_dotenv()
 app = FastAPI()
 embedder = SentenceTransformer("BAAI/bge-m3")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 class Item(BaseModel):
     start_date : str
@@ -38,8 +37,19 @@ class FixRequest(BaseModel):
 class Location(BaseModel):
     itinerary_data: Dict[str, Any]
 
+
+def choose_k_density(num_days, months, cities, num_docs, base_k=3, max_k=20):
+    length_factor = num_days // 2     
     
-def query_documents(num_days, months, cities, query_text, k=1):
+    city_factor = len(cities)
+    
+    density_factor = int(math.log1p(int(num_docs)))  
+    
+    month_factor = len(months) // 2  
+    k = base_k + length_factor + city_factor + density_factor + month_factor
+    return min(max_k, max(base_k, k))
+    
+def query_documents(num_days, months, cities, query_text):
     conn = psycopg2.connect(
         host="localhost",
         database="LLM",
@@ -50,6 +60,14 @@ def query_documents(num_days, months, cities, query_text, k=1):
     cur = conn.cursor()
     query_embedding = embedder.encode(query_text).tolist()
     query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+    query_count = """
+        SELECT COUNT(*) 
+        FROM documents
+        WHERE cities @> %s AND months @> %s AND duration_days = %s
+    """
+    cur.execute(query_count, (cities, months, num_days))
+    num_docs = cur.fetchall()[0][0]
+    k = choose_k_density(num_days, months, cities, num_docs)
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
@@ -64,7 +82,7 @@ def query_documents(num_days, months, cities, query_text, k=1):
     cur.close()
     conn.close()
     output = "\n".join([str(i) for i in results])
-    print("Query results:", output)
+    print("Query results:",k , output)
     return results
 
 # ข้อมูลสภาพอากาศในญี่ปุ่น
@@ -89,7 +107,7 @@ def get_season_data():
     }
 
 
-
+@app.post("/llm/")
 async def query_llm(text: Item):
     date_start_str = text.start_date
     date_end_str = text.end_date
@@ -148,6 +166,13 @@ async def query_llm(text: Item):
     """
     
     if len(retrieved_docs) <= 0:
+        web_search = f"""Japan Itinerary {num_days}days starts {date_start_str}-{date_end_str} {', '.join(text.cities)} {text.text}"""
+        tavily_response = tavily_client.search(
+            query=web_search,
+            include_answer="advanced"
+        )
+        tavily_context = tavily_response['answer']
+        print("no retrieced doc found: ", tavily_context)
         prompt = f"""Generate a detailed travel itinerary in JSON format. 
             
             The itinerary must include:  
@@ -163,7 +188,7 @@ async def query_llm(text: Item):
             
             - **Comments** or additional notes about the itinerary **example about the season for example, is that month suitable for that kind of weather? Like going to see cherry blossoms in a month when they're not blooming. ** here is season data {season_data}.
         
-            Ensure the response contains **only** valid JSON with no explanations or extra text. Create an itinerary based on {text.cities} and {text.text}. If {text.cities} and {text.text} are not realistically possible due to distance, time, or season, adjust them as needed to make the itinerary feasible.
+            Ensure the response contains **only** valid JSON with no explanations or extra text. Create an itinerary based on {text.cities} and {text.text}. If {text.cities} and {text.text} are not realistically possible due to distance, time, or season, adjust them as needed ** you can use this information {tavily_context} to make the itinerary better **
             **** Verify that the itinerary aligns with the travel period ({text.start_date}–{text.end_date}) and includes manageable distances and travel times between locations ****
             
             *** NO double quotes at the start and end of the JSON response. ***
@@ -336,27 +361,27 @@ async def query_llm_fix(text: FixRequest):
             make the itinerary in English language.
         """
         
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": "You are an assistant that helps to refine and improve travel itineraries activity."},
-            # {"role": "system", "content": "You are an assistant that helps to refine travel itineraries in **thai language**."},
-            {"role": "user", "content": prompt},
-        ]
-    )
+    # response = client.chat.completions.create(
+    #     model="gpt-4.1-mini",
+    #     messages=[
+    #         {"role": "system", "content": "You are an assistant that helps to refine and improve travel itineraries activity."},
+    #         # {"role": "system", "content": "You are an assistant that helps to refine travel itineraries in **thai language**."},
+    #         {"role": "user", "content": prompt},
+    #     ]
+    # )
     
-    response_answer = response.choices[0].message.content
-    response_answer = response_answer.strip().replace("\n", "").replace("```", "")
-    if response_answer.startswith('json'):
-        response_answer = response_answer[4:]
-    # return response_answer
-    try:
-    # Parse the input text directly
-        data = json.loads(response_answer)
-        print("JSON parsed successfully")
-    except json.JSONDecodeError as e:
-        print(f"JSON parsing failed: {e}")
-    return data
+    # response_answer = response.choices[0].message.content
+    # response_answer = response_answer.strip().replace("\n", "").replace("```", "")
+    # if response_answer.startswith('json'):
+    #     response_answer = response_answer[4:]
+    # # return response_answer
+    # try:
+    # # Parse the input text directly
+    #     data = json.loads(response_answer)
+    #     print("JSON parsed successfully")
+    # except json.JSONDecodeError as e:
+    #     print(f"JSON parsing failed: {e}")
+    # return data
 
 
 @app.post("/get_location/")
