@@ -257,7 +257,8 @@ def main():
         f.write(f"Start date: {start_date}\n")
         f.write(f"End date: {end_date}\n")
         f.write(f"Cities: {', '.join(cities)}\n")
-        f.write(f"Text: {text}\n\n")
+        f.write(f"Text: {text}\n")
+        f.write(f"Top-k: {len(references[0])}\n\n")
         f.write("=== Multiple Reference Evaluation ===\n")
         for k, v in results.items():
             f.write(f"{k}: {v:.4f}\n")
