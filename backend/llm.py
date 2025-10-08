@@ -38,24 +38,20 @@ class Location(BaseModel):
     itinerary_data: Dict[str, Any]
 
 
-def choose_k_density(num_days, months, cities, num_docs, base_k=3, max_k=20):
+def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=20):
     length_factor = num_days // 2     
     
     city_factor = len(cities)
     
-    density_factor = int(math.log1p(int(num_docs)))  
+    density_factor = int(math.log1p(int(num_docs))) // 2
     
     month_factor = len(months) // 2  
     k = base_k + length_factor + city_factor + density_factor + month_factor
     return min(max_k, max(base_k, k))
     
 def query_documents(num_days, months, cities, query_text):
-    conn = psycopg2.connect(
-        host="localhost",
-        database="LLM",
-        user="postgres",
-        password=os.getenv("DB_PASSWORD")
-    )
+    db_url = os.getenv('DATABASE_LLM_URL')
+    conn = psycopg2.connect(db_url)
 
     cur = conn.cursor()
     query_embedding = embedder.encode(query_text).tolist()
@@ -81,9 +77,9 @@ def query_documents(num_days, months, cities, query_text):
     results = cur.fetchall()
     cur.close()
     conn.close()
-    output = "\n".join([str(i) for i in results])
-    print("Query results:",k , output)
-    return results
+    output = [i[0] for i in results]
+    print("Top K: ",k , "\nQuery result: ", num_docs, output)
+    return output
 
 # ข้อมูลสภาพอากาศในญี่ปุ่น
 def get_season_data():
@@ -312,11 +308,18 @@ async def query_llm_fix(text: FixRequest):
     }
     """
     if len(retrieved_docs) <= 0:
+        web_search = f"""Japan Itinerary {num_days}days starts {date_start_str}-{date_end_str} {', '.join(text.cities)} {text.text}"""
+        tavily_response = tavily_client.search(
+            query=web_search,
+            include_answer="advanced"
+        )
+        tavily_context = tavily_response['answer']
+        print("no retrieced doc found: ", tavily_context)
         prompt = f"""Change the activities in this itinerary: {itinerary_json}
 
             Your task:
             1. MODIFY THE ACTIVITIES based on this user request: {text.text}
-            2. Use this additional text and cities to improve the travel plan: {text.text} and {text.cities}
+            2. Use this additional text and cities to improve the travel plan: {tavily_context}
             3. You MUST REPLACE the original activities with new ones that align with the user's request
 
             Requirements for the modified itinerary:
@@ -361,27 +364,27 @@ async def query_llm_fix(text: FixRequest):
             make the itinerary in English language.
         """
         
-    # response = client.chat.completions.create(
-    #     model="gpt-4.1-mini",
-    #     messages=[
-    #         {"role": "system", "content": "You are an assistant that helps to refine and improve travel itineraries activity."},
-    #         # {"role": "system", "content": "You are an assistant that helps to refine travel itineraries in **thai language**."},
-    #         {"role": "user", "content": prompt},
-    #     ]
-    # )
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": "You are an assistant that helps to refine and improve travel itineraries activity."},
+            # {"role": "system", "content": "You are an assistant that helps to refine travel itineraries in **thai language**."},
+            {"role": "user", "content": prompt},
+        ]
+    )
     
-    # response_answer = response.choices[0].message.content
-    # response_answer = response_answer.strip().replace("\n", "").replace("```", "")
-    # if response_answer.startswith('json'):
-    #     response_answer = response_answer[4:]
-    # # return response_answer
-    # try:
-    # # Parse the input text directly
-    #     data = json.loads(response_answer)
-    #     print("JSON parsed successfully")
-    # except json.JSONDecodeError as e:
-    #     print(f"JSON parsing failed: {e}")
-    # return data
+    response_answer = response.choices[0].message.content
+    response_answer = response_answer.strip().replace("\n", "").replace("```", "")
+    if response_answer.startswith('json'):
+        response_answer = response_answer[4:]
+    # return response_answer
+    try:
+    # Parse the input text directly
+        data = json.loads(response_answer)
+        print("JSON parsed successfully")
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing failed: {e}")
+    return data
 
 
 @app.post("/get_location/")

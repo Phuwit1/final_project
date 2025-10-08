@@ -2,15 +2,21 @@ import nltk
 from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
 from rouge_score import rouge_scorer
 from bert_score import score
+from sentence_transformers import SentenceTransformer
+from datetime import datetime
 import numpy as np
-from typing import List, Dict, Tuple
-import re
+from typing import List, Dict
+import re, requests, psycopg2, os, math, json
+from dotenv import load_dotenv
 
+load_dotenv()
+embedder = SentenceTransformer("BAAI/bge-m3")
 # Download required NLTK data - updated for newer NLTK versions
 try:
     nltk.download('punkt_tab', quiet=True)
 except:
     nltk.download('punkt', quiet=True)
+
 
 class TripPlannerEvaluator:
     def __init__(self):
@@ -18,788 +24,243 @@ class TripPlannerEvaluator:
     
     def preprocess_text(self, text: str) -> str:
         """Clean and preprocess text for evaluation"""
-        # Remove extra whitespace and normalize
-        text = re.sub(r'\s+', ' ', text.strip())
-        # Convert to lowercase for consistency
-        text = text.lower()
-        return text
+        text = re.sub(r'\s+', ' ', text.strip())  # normalize whitespace
+        return text.lower()
     
-    def calculate_bleu_score(self, reference: str, candidate: str) -> Dict[str, float]:
+    def calculate_bleu_score(self, references: List[str], candidate: str) -> Dict[str, float]:
         """
-        Calculate BLEU scores (1-gram to 4-gram)
+        Calculate BLEU scores (1-gram to 4-gram) for multiple references.
         
         Args:
-            reference: Ground truth trip plan
+            references: List of ground truth trip plans
             candidate: Generated trip plan
             
         Returns:
             Dictionary with BLEU-1, BLEU-2, BLEU-3, BLEU-4 scores
         """
-        # Preprocess texts
-        reference = self.preprocess_text(reference)
-        candidate = self.preprocess_text(candidate)
-        
-        # Tokenize with error handling
+        # Preprocess and tokenize
         try:
-            ref_tokens = nltk.word_tokenize(reference)
-            cand_tokens = nltk.word_tokenize(candidate)
+            ref_tokens = [nltk.word_tokenize(self.preprocess_text(ref)) for ref in references]
+            cand_tokens = nltk.word_tokenize(self.preprocess_text(candidate))
         except LookupError:
-            # Fallback to simple splitting if NLTK tokenizer fails
-            ref_tokens = reference.split()
-            cand_tokens = candidate.split()
+            ref_tokens = [self.preprocess_text(ref).split() for ref in references]
+            cand_tokens = self.preprocess_text(candidate).split()
         
-        # Calculate BLEU scores for different n-grams
-        bleu_scores = {}
-        
-        # BLEU-1 (unigram)
-        bleu_scores['BLEU-1'] = sentence_bleu([ref_tokens], cand_tokens, weights=(1.0, 0, 0, 0))
-        
-        # BLEU-2 (bigram)
-        bleu_scores['BLEU-2'] = sentence_bleu([ref_tokens], cand_tokens, weights=(0.5, 0.5, 0, 0))
-        
-        # BLEU-3 (trigram)
-        bleu_scores['BLEU-3'] = sentence_bleu([ref_tokens], cand_tokens, weights=(0.33, 0.33, 0.33, 0))
-        
-        # BLEU-4 (4-gram) - most commonly used
-        bleu_scores['BLEU-4'] = sentence_bleu([ref_tokens], cand_tokens, weights=(0.25, 0.25, 0.25, 0.25))
-        
+        # Compute BLEU scores
+        bleu_scores = {
+            'BLEU-1': sentence_bleu(ref_tokens, cand_tokens, weights=(1.0, 0, 0, 0)),
+            'BLEU-2': sentence_bleu(ref_tokens, cand_tokens, weights=(0.5, 0.5, 0, 0)),
+            'BLEU-3': sentence_bleu(ref_tokens, cand_tokens, weights=(0.33, 0.33, 0.33, 0)),
+            'BLEU-4': sentence_bleu(ref_tokens, cand_tokens, weights=(0.25, 0.25, 0.25, 0.25)),
+        }
         return bleu_scores
     
-    def calculate_rouge_scores(self, reference: str, candidate: str) -> Dict[str, float]:
+    def calculate_rouge_scores(self, references: List[str], candidate: str) -> Dict[str, float]:
         """
-        Calculate ROUGE scores (ROUGE-1, ROUGE-2, ROUGE-L)
+        Calculate averaged ROUGE scores over multiple references.
         
         Args:
-            reference: Ground truth trip plan
+            references: List of ground truth trip plans
             candidate: Generated trip plan
             
         Returns:
-            Dictionary with ROUGE scores
+            Dictionary with average ROUGE-1, ROUGE-2, ROUGE-L (P, R, F1)
         """
-        # Preprocess texts
-        reference = self.preprocess_text(reference)
         candidate = self.preprocess_text(candidate)
+        scores = {f'ROUGE{i}-{m}': [] for i in ['1', '2', 'L'] for m in ['P', 'R', 'F1']}
+
+        for ref in references:
+            ref = self.preprocess_text(ref)
+            s = self.rouge_scorer.score(ref, candidate)
+            for k, v in s.items():
+                scores[f'{k.upper()}-P'].append(v.precision)
+                scores[f'{k.upper()}-R'].append(v.recall)
+                scores[f'{k.upper()}-F1'].append(v.fmeasure)
         
-        # Calculate ROUGE scores
-        scores = self.rouge_scorer.score(reference, candidate)
-        
-        rouge_scores = {}
-        for metric, score_obj in scores.items():
-            rouge_scores[f'{metric.upper()}-P'] = score_obj.precision
-            rouge_scores[f'{metric.upper()}-R'] = score_obj.recall
-            rouge_scores[f'{metric.upper()}-F1'] = score_obj.fmeasure
-        
-        return rouge_scores
+        # Average over references
+        return {k: float(np.mean(v)) for k, v in scores.items()}
     
-    def calculate_bert_score(self, references: List[str], candidates: List[str], 
-                           model_type: str = "microsoft/deberta-xlarge-mnli") -> Dict[str, float]:
+    def calculate_bert_score(self, references: List[List[str]], candidates: List[str], 
+                             model_type: str = "microsoft/deberta-xlarge-mnli") -> Dict[str, float]:
         """
-        Calculate BERTScore
-        
-        Args:
-            references: List of reference trip plans
-            candidates: List of generated trip plans
-            model_type: BERT model to use for scoring
-            
-        Returns:
-            Dictionary with precision, recall, and F1 scores
+        Calculate BERTScore (supports multiple references per candidate).
         """
-        # Preprocess texts
-        references = [self.preprocess_text(ref) for ref in references]
-        candidates = [self.preprocess_text(cand) for cand in candidates]
+        # Flatten and preprocess
+        candidates = [self.preprocess_text(c) for c in candidates]
+        references = [[self.preprocess_text(r) for r in refs] for refs in references]
         
-        # Calculate BERTScore with error handling
         try:
-            P, R, F1 = score(candidates, references, model_type=model_type, verbose=False)
-            
+            P, R, F1 = score(candidates, references, model_type=model_type, verbose=False, lang="en")
             return {
                 'BERTScore-P': P.mean().item(),
                 'BERTScore-R': R.mean().item(),
                 'BERTScore-F1': F1.mean().item()
             }
         except Exception as e:
-            print(f"Warning: BERTScore calculation failed: {e}")
-            print("Falling back to simpler model...")
-            try:
-                # Try with a lighter model
-                P, R, F1 = score(candidates, references, model_type="distilbert-base-uncased", verbose=False)
-                return {
-                    'BERTScore-P': P.mean().item(),
-                    'BERTScore-R': R.mean().item(),
-                    'BERTScore-F1': F1.mean().item()
-                }
-            except Exception as e2:
-                print(f"BERTScore failed with fallback model: {e2}")
-                return {
-                    'BERTScore-P': 0.0,
-                    'BERTScore-R': 0.0,
-                    'BERTScore-F1': 0.0
-                }
-    
-    def evaluate_single_pair(self, reference: str, candidate: str) -> Dict[str, float]:
+            print(f"Warning: BERTScore failed ({e}), fallback to distilbert...")
+            P, R, F1 = score(candidates, references, model_type="distilbert-base-uncased", verbose=False)
+            return {
+                'BERTScore-P': P.mean().item(),
+                'BERTScore-R': R.mean().item(),
+                'BERTScore-F1': F1.mean().item()
+            }
+
+    def evaluate_single(self, references: List[str], candidate: str) -> Dict[str, float]:
         """
-        Evaluate a single reference-candidate pair with all metrics
-        
-        Args:
-            reference: Ground truth trip plan
-            candidate: Generated trip plan
-            
-        Returns:
-            Dictionary with all evaluation scores
+        Evaluate one candidate against multiple references.
         """
         results = {}
-        
-        # BLEU scores
-        bleu_scores = self.calculate_bleu_score(reference, candidate)
-        results.update(bleu_scores)
-        
-        # ROUGE scores
-        rouge_scores = self.calculate_rouge_scores(reference, candidate)
-        results.update(rouge_scores)
-        
-        # BERTScore (for single pair, we need to pass as lists)
-        bert_scores = self.calculate_bert_score([reference], [candidate])
-        results.update(bert_scores)
-        
+        results.update(self.calculate_bleu_score(references, candidate))
+        results.update(self.calculate_rouge_scores(references, candidate))
+        results.update(self.calculate_bert_score([references], [candidate]))
         return results
-    
-    def evaluate_batch(self, references: List[str], candidates: List[str]) -> Dict[str, float]:
+
+    def evaluate_batch(self, references: List[List[str]], candidates: List[str]) -> Dict[str, float]:
         """
-        Evaluate multiple reference-candidate pairs
-        
-        Args:
-            references: List of ground truth trip plans
-            candidates: List of generated trip plans
-            
-        Returns:
-            Dictionary with averaged evaluation scores
+        Evaluate batch of candidates with their respective multiple references.
         """
-        if len(references) != len(candidates):
-            raise ValueError("Number of references and candidates must be equal")
-        
-        # Initialize score accumulator
         all_scores = {}
+        for refs, cand in zip(references, candidates):
+            pair_scores = self.evaluate_single(refs, cand)
+            for k, v in pair_scores.items():
+                all_scores.setdefault(k, []).append(v)
         
-        # Calculate BLEU and ROUGE for each pair
-        for ref, cand in zip(references, candidates):
-            bleu_scores = self.calculate_bleu_score(ref, cand)
-            rouge_scores = self.calculate_rouge_scores(ref, cand)
-            
-            # Accumulate scores
-            for metric, score in {**bleu_scores, **rouge_scores}.items():
-                if metric not in all_scores:
-                    all_scores[metric] = []
-                all_scores[metric].append(score)
-        
-        # Calculate BERTScore for the entire batch
-        bert_scores = self.calculate_bert_score(references, candidates)
-        
-        # Average all scores
-        averaged_scores = {}
-        for metric, scores in all_scores.items():
-            averaged_scores[metric] = np.mean(scores)
-        
-        # Add BERTScore
-        averaged_scores.update(bert_scores)
-        
-        return averaged_scores
+        return {k: np.mean(v) for k, v in all_scores.items()}
+
+def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=20):
+    length_factor = num_days // 2     
+    
+    city_factor = len(cities)
+    
+    density_factor = int(math.log1p(int(num_docs)))  // 2
+    
+    month_factor = len(months) // 2  
+    k = base_k + length_factor + city_factor + density_factor + month_factor
+    return min(max_k, max(base_k, k))
+    
+def query_documents(start_date, end_date, cities, query_text):
+    date_start = datetime.strptime(start_date, "%d/%m/%Y")
+    date_end = datetime.strptime(end_date, "%d/%m/%Y")
+    num_days = (date_end - date_start).days + 1
+    
+    months = []
+    # Iterate over each month in the date range
+    current = date_start
+    while current <= date_end:
+        month_name = current.strftime('%B')  # Full month name (e.g., March)
+        if month_name not in months:  # Avoid duplicates
+            months.append(month_name)
+        # Move to next month
+        if current.month == 12:
+            current = datetime(current.year + 1, 1, 1)
+        else:
+            current = datetime(current.year, current.month + 1, 1)    
+    
+    
+    
+    db_url = os.getenv('DATABASE_LLM_URL')
+    conn = psycopg2.connect(db_url)
+
+    cur = conn.cursor()
+    query_embedding = embedder.encode(query_text).tolist()
+    query_embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+    query_count = """
+        SELECT COUNT(*) 
+        FROM documents
+        WHERE cities @> %s AND months @> %s AND duration_days = %s
+    """
+    cur.execute(query_count, (cities, months, num_days))
+    num_docs = cur.fetchall()[0][0]
+    k = choose_k_density(num_days, months, cities, num_docs)
+    query = """
+        SELECT content, embedding <=> %s::vector AS similarity_score
+        FROM documents
+        WHERE cities @> %s AND months @> %s AND duration_days = %s
+        ORDER BY similarity_score ASC
+        LIMIT %s
+    """
+    # where @> or && dont know use @> or &&
+
+    cur.execute(query, (query_embedding_str, cities, months, num_days, k))
+    results = cur.fetchall()
+    cur.close()
+    conn.close()
+    output = [i[0] for i in results]
+    print("Top K: ",k , "\nQuery result: ", len(output))
+    return output
 
 
-# Example usage and demonstration
+# Example usage
 def main():
-    # Initialize evaluator
     evaluator = TripPlannerEvaluator()
+    start_date = "02/03/2025"
+    end_date = "07/03/2025"
+    cities = ["Tokyo"]
+    text = "anime"
     
-    # Example trip plans for evaluation
-    reference_plans = [
-        """
-        {
-    "itinerary": [
-        {
-            "date": "2025-03-02",
-            "day": "Day 1",
-            "schedule": [
-                {
-                    "time": "14:00",
-                    "activity": "Arrive at Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "15:30",
-                    "activity": "Transfer to hotel and check-in",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "18:00",
-                    "activity": "Rest at hotel and prepare for the tour starting tomorrow",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-03",
-            "day": "Day 2",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Visit Tsukiji Fish Market",
-                    "need_location": true,
-                    "specific_location_name": "Tsukiji Fish Market",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "10:30",
-                    "activity": "Explore Sensoji Temple",
-                    "need_location": true,
-                    "specific_location_name": "Sensoji Temple",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "12:30",
-                    "activity": "Enjoy seasonal Japanese lunch",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "14:00",
-                    "activity": "Experience Shibuya Scramble Crossing and photograph Shibuya Hachiko Statue",
-                    "need_location": true,
-                    "specific_location_name": "Shibuya Hachiko Statue",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "16:00",
-                    "activity": "Visit teamLab Planets TOKYO immersive digital art museum",
-                    "need_location": true,
-                    "specific_location_name": "teamLab Planets TOKYO",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "18:30",
-                    "activity": "Return to hotel and evening at leisure",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-04",
-            "day": "Day 3",
-            "schedule": [
-                {
-                    "time": "09:00",
-                    "activity": "Tour the Ghibli Museum in Mitaka",
-                    "need_location": true,
-                    "specific_location_name": "Ghibli Museum",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "11:30",
-                    "activity": "Explore Nakano Broadway shopping complex",
-                    "need_location": true,
-                    "specific_location_name": "Nakano Broadway",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "13:00",
-                    "activity": "Lunch at a famous ramen shop",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "14:30",
-                    "activity": "Visit Pokemon Center and Pikachu Sweets Cafe in Ikebukuro",
-                    "need_location": true,
-                    "specific_location_name": "Pokemon Center",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "16:00",
-                    "activity": "Shop at Animate Ikebukuro and Mugiwara Store",
-                    "need_location": true,
-                    "specific_location_name": "Animate Ikebukuro",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "17:30",
-                    "activity": "Explore Akihabara area: Tamashii Nations Store Tokyo, Super Potato, Maid Cafe",
-                    "need_location": true,
-                    "specific_location_name": "Akihabara",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "19:30",
-                    "activity": "Return to hotel and rest",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-05",
-            "day": "Day 4",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "09:00",
-                    "activity": "Free day at leisure to explore Tokyo or optional tours (e.g., Tokyo Disneyland, DisneySea, Sanrio Puroland)",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Return to hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-06",
-            "day": "Day 5",
-            "schedule": [
-                {
-                    "time": "09:00",
-                    "activity": "Visit AnimeJapan Festival",
-                    "need_location": true,
-                    "specific_location_name": "AnimeJapan",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "13:00",
-                    "activity": "Explore Gundam Base Tokyo in Odaiba",
-                    "need_location": true,
-                    "specific_location_name": "Gundam Base Tokyo",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "15:00",
-                    "activity": "Visit Small Worlds Tokyo exhibition",
-                    "need_location": true,
-                    "specific_location_name": "Small Worlds Tokyo",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "17:00",
-                    "activity": "Return to hotel and prepare for departure",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-07",
-            "day": "Day 6",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Breakfast and check-out",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "10:00",
-                    "activity": "Departure transfer to Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        }
-    ],
-    "comments": "The trip takes place in early March, which is the beginning of spring in Japan. While cherry blossoms start blooming mostly from late March to early April in Tokyo, early March might be a little early for full cherry blossom viewing but you can still enjoy early plum blossoms and the beginnings of spring scenery. The weather is cool, suitable for layered clothing with light jackets and sweaters. The itinerary is designed around Tokyo's anime culture and includes manageable travel distances within Tokyo with one free day for optional exploration or rest. Travel times between locations are reasonable to ensure a comfortable pace."
-}
-"""
-    ]
-    
-    generated_plans = [
-        """
-        {
-    "itinerary": [
-        {
-            "date": "2025-03-02",
-            "day": "Day 1",
-            "schedule": [
-                {
-                    "time": "14:00",
-                    "activity": "Arrive at Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "15:30",
-                    "activity": "Arrival Transfer to hotel in downtown Tokyo",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "17:00",
-                    "activity": "Check-in Tobu Hotel Levant Tokyo or similar",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Hotel rest time and leisure",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-03",
-            "day": "Day 2",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "09:00",
-                    "activity": "Explore Tsukiji Fish Market",
-                    "need_location": true,
-                    "specific_location_name": "Tsukiji Fish Market",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "11:00",
-                    "activity": "Visit Sensoji Temple in Asakusa",
-                    "need_location": true,
-                    "specific_location_name": "Sensoji Temple",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "12:30",
-                    "activity": "Lunch - Seasonal Japanese meal",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "14:00",
-                    "activity": "Walk Nakamise-dori shopping street",
-                    "need_location": true,
-                    "specific_location_name": "Nakamise-dori",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "15:30",
-                    "activity": "Visit Shibuya Scramble Crossing",
-                    "need_location": true,
-                    "specific_location_name": "Shibuya Scramble Crossing",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "16:00",
-                    "activity": "Photo at Shibuya Hachiko Statue",
-                    "need_location": true,
-                    "specific_location_name": "Hachiko Statue",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "17:00",
-                    "activity": "Visit teamLab Planets TOKYO",
-                    "need_location": true,
-                    "specific_location_name": "teamLab Planets TOKYO",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Return to hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-04",
-            "day": "Day 3",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "09:00",
-                    "activity": "Visit Ghibli Museum in Mitaka",
-                    "need_location": true,
-                    "specific_location_name": "Ghibli Museum",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "11:00",
-                    "activity": "Explore Nakano Broadway shopping complex",
-                    "need_location": true,
-                    "specific_location_name": "Nakano Broadway",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "12:30",
-                    "activity": "Lunch at a famous ramen shop",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "14:00",
-                    "activity": "Visit Pokémon Center Mega Tokyo",
-                    "need_location": true,
-                    "specific_location_name": "Pokémon Center Mega Tokyo",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "15:00",
-                    "activity": "Enjoy sweets at Pikachu Sweets Cafe",
-                    "need_location": true,
-                    "specific_location_name": "Pikachu Sweets Cafe",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "16:00",
-                    "activity": "Shop at Animate Ikebukuro",
-                    "need_location": true,
-                    "specific_location_name": "Animate Ikebukuro",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "17:00",
-                    "activity": "Visit Tamashii Nations Store Tokyo in Akihabara",
-                    "need_location": true,
-                    "specific_location_name": "Tamashii Nations Store Tokyo",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "18:00",
-                    "activity": "Stop by Super Potato retro game shop",
-                    "need_location": true,
-                    "specific_location_name": "Super Potato",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Return to hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-05",
-            "day": "Day 4",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "09:00",
-                    "activity": "Free day at your own leisure to explore Tokyo or visit optional attractions such as Tokyo Disneyland or DisneySea, Sailor Moon Store, Harajuku Kiddy Land",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "19:00",
-                    "activity": "Return to hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-06",
-            "day": "Day 5",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "09:00",
-                    "activity": "Visit AnimeJapan Festival",
-                    "need_location": true,
-                    "specific_location_name": "AnimeJapan Festival",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "13:00",
-                    "activity": "Explore Gundam Base Tokyo in Odaiba",
-                    "need_location": true,
-                    "specific_location_name": "Gundam Base Tokyo",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "15:00",
-                    "activity": "Visit Small Worlds Tokyo",
-                    "need_location": true,
-                    "specific_location_name": "Small Worlds Tokyo",
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "18:00",
-                    "activity": "Return to hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        },
-        {
-            "date": "2025-03-07",
-            "day": "Day 6",
-            "schedule": [
-                {
-                    "time": "08:00",
-                    "activity": "Breakfast at hotel",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                },
-                {
-                    "time": "10:00",
-                    "activity": "Departure transfer to Narita Int'l Airport (NRT) or Haneda Int'l Airport (HND)",
-                    "need_location": false,
-                    "specific_location_name": null,
-                    "lat": null,
-                    "lng": null
-                }
-            ]
-        }
-    ],
-    "comments": "The travel period is early March, which aligns well with the beginning of cherry blossom season in Tokyo; some early blooms may be visible especially later in the period. The itinerary distances are manageable within Tokyo and Odaiba areas with transit times considered. Activities are balanced with cultural, anime-related, and leisure time, suitable for spring weather with light jackets advised as temperatures can be cool in March."
-}
-"""
-    ]
-    
-    print("=== Single Pair Evaluation ===")
-    # Evaluate single pair
-    single_scores = evaluator.evaluate_single_pair(reference_plans[0], generated_plans[0])
-    for metric, score in single_scores.items():
-        print(f"{metric}: {score:.4f}")
-    
-    print("\n=== Batch Evaluation ===")
-    # Evaluate batch
-    batch_scores = evaluator.evaluate_batch(reference_plans, generated_plans)
-    for metric, score in batch_scores.items():
-        print(f"{metric}: {score:.4f}")
-    
-    print("\n=== Interpretation Guide ===")
-    print("BLEU Scores (0-1, higher is better):")
-    print("  - 0.0-0.3: Poor quality")
-    print("  - 0.3-0.6: Reasonable quality") 
-    print("  - 0.6-1.0: High quality")
-    print("\nROUGE Scores (0-1, higher is better):")
-    print("  - ROUGE-1: Unigram overlap")
-    print("  - ROUGE-2: Bigram overlap") 
-    print("  - ROUGE-L: Longest common subsequence")
-    print("\nBERTScore (0-1, higher is better):")
-    print("  - Captures semantic similarity better than n-gram metrics")
-    print("  - More robust to paraphrasing and word choice variations")
 
+    references = [[]]
+    print("Querying documents...")
+    for i in query_documents(start_date, end_date, cities, text):
+        payload = {"itinerary": i, "start_date": start_date, "end_date": end_date}
+        references[0].append(requests.post("http://127.0.0.1:8001/sum", json=payload).text)
+        print(len(references[0]))
+    print("done querying")
+    
+    # 🔹 Save references as pretty JSON
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_dir = f"log/{timestamp}"
+    os.makedirs(log_dir, exist_ok=True)
+    
+    ref_file = f"log/{timestamp}/ref_" + str(start_date).replace("/", "-") + "_" + str(end_date).replace("/", "-") + "_" + "-".join(cities) + ".json"
+    with open(ref_file, "w", encoding="utf-8") as file:
+        json.dump(references[0], file, ensure_ascii=False, indent=4)
+    with open(ref_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    # data ตอนนี้เป็น list ที่ข้างในเป็น string
+    # ต้อง parse อีกชั้น
+    parsed = [json.loads(item) for item in data]
+    # บันทึกใหม่เป็น JSON ที่อ่านง่าย
+    ref_pretty_file = f"log/{timestamp}/ref_" + str(start_date).replace("/", "-") + "_" + str(end_date).replace("/", "-") + "_" + "-".join(cities) + "_pretty.json"
+    with open(ref_pretty_file, "w", encoding="utf-8") as f:
+        json.dump(parsed, f, ensure_ascii=False, indent=4)
+
+    candidates = []
+
+    print("Generating candidate...")
+    payload2 = {"start_date": start_date, "end_date": end_date, "cities": cities, "text": text}
+    candidates.append(requests.post("http://127.0.0.1:8000/llm", json=payload2).text)
+    print("done generating")
+    # 🔹 Save candidate as pretty JSON
+    can_file = f"log/{timestamp}/can_" + str(start_date).replace("/", "-") + "_" + str(end_date).replace("/", "-") + "_" + "-".join(cities) + ".json"
+    with open(can_file, "w", encoding="utf-8") as file:
+        json.dump(candidates, file, ensure_ascii=False, indent=4)
+    with open(can_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    # data ตอนนี้เป็น list ที่ข้างในเป็น string
+    # ต้อง parse อีกชั้น
+    parsed = [json.loads(item) for item in data]
+    # บันทึกใหม่เป็น JSON ที่อ่านง่าย
+    can_pretty_file = f"log/{timestamp}/can_" + str(start_date).replace("/", "-") + "_" + str(end_date).replace("/", "-") + "_" + "-".join(cities) + "_pretty.json"
+    with open(can_pretty_file, "w", encoding="utf-8") as f:
+        json.dump(parsed, f, ensure_ascii=False, indent=4)
+    
+    
+    
+    print("=== Multiple Reference Evaluation ===")
+    results = evaluator.evaluate_batch(references, candidates)
+    for k, v in results.items():
+        print(f"{k}: {v:.4f}")
+
+    # บันทึกผลลัพธ์ลงไฟล์
+    with open(f"log/{timestamp}/results.txt", "w", encoding="utf-8") as f:
+        f.write(f"Start date: {start_date}\n")
+        f.write(f"End date: {end_date}\n")
+        f.write(f"Cities: {', '.join(cities)}\n")
+        f.write(f"Text: {text}\n\n")
+        f.write("=== Multiple Reference Evaluation ===\n")
+        for k, v in results.items():
+            f.write(f"{k}: {v:.4f}\n")
 
 if __name__ == "__main__":
     main()
-
-# Installation requirements:
-# pip install nltk rouge-score bert-score transformers torch
-
-# Additional setup for NLTK (run once):
-# import nltk
-# nltk.download('punkt_tab')  # For newer NLTK versions
-# nltk.download('punkt')      # For older NLTK versions
