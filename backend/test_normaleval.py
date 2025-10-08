@@ -1,5 +1,4 @@
-import nltk
-from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
+from sacrebleu.metrics import BLEU
 from rouge_score import rouge_scorer
 from bert_score import score
 from sentence_transformers import SentenceTransformer
@@ -11,11 +10,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 embedder = SentenceTransformer("BAAI/bge-m3")
-# Download required NLTK data - updated for newer NLTK versions
-try:
-    nltk.download('punkt_tab', quiet=True)
-except:
-    nltk.download('punkt', quiet=True)
 
 
 class TripPlannerEvaluator:
@@ -38,20 +32,21 @@ class TripPlannerEvaluator:
         Returns:
             Dictionary with BLEU-1, BLEU-2, BLEU-3, BLEU-4 scores
         """
-        # Preprocess and tokenize
-        try:
-            ref_tokens = [nltk.word_tokenize(self.preprocess_text(ref)) for ref in references]
-            cand_tokens = nltk.word_tokenize(self.preprocess_text(candidate))
-        except LookupError:
-            ref_tokens = [self.preprocess_text(ref).split() for ref in references]
-            cand_tokens = self.preprocess_text(candidate).split()
+        # Preprocess
+        references = [self.preprocess_text(ref) for ref in references]
+        candidate = self.preprocess_text(candidate)
         
         # Compute BLEU scores
+        bleu_1 = BLEU(max_ngram_order=1, effective_order=True)
+        bleu_2 = BLEU(max_ngram_order=2, effective_order=True)
+        bleu_3 = BLEU(max_ngram_order=3, effective_order=True)
+        bleu_4 = BLEU(max_ngram_order=4, effective_order=True)
+        
         bleu_scores = {
-            'BLEU-1': sentence_bleu(ref_tokens, cand_tokens, weights=(1.0, 0, 0, 0)),
-            'BLEU-2': sentence_bleu(ref_tokens, cand_tokens, weights=(0.5, 0.5, 0, 0)),
-            'BLEU-3': sentence_bleu(ref_tokens, cand_tokens, weights=(0.33, 0.33, 0.33, 0)),
-            'BLEU-4': sentence_bleu(ref_tokens, cand_tokens, weights=(0.25, 0.25, 0.25, 0.25)),
+            'BLEU-1': bleu_1.sentence_score(candidate, references).score / 100,
+            'BLEU-2': bleu_2.sentence_score(candidate, references).score / 100,
+            'BLEU-3': bleu_3.sentence_score(candidate, references).score / 100,
+            'BLEU-4': bleu_4.sentence_score(candidate, references).score / 100,
         }
         return bleu_scores
     
@@ -193,10 +188,10 @@ def query_documents(start_date, end_date, cities, query_text):
 # Example usage
 def main():
     evaluator = TripPlannerEvaluator()
-    start_date = "02/03/2025"
-    end_date = "07/03/2025"
-    cities = ["Tokyo"]
-    text = "anime"
+    start_date = "20/12/2025"
+    end_date = "27/12/2025"
+    cities = ["Osaka", "Kyoto"]
+    text = "cherry blossoms"
     
 
     references = [[]]
