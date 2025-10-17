@@ -4,6 +4,7 @@ pip install -U sentence-transformers <br>
 ollama <br> 
 pip install python-dotenv <br>
 pip install openai <br>
+pip install --upgrade google-generativeai <br>
 pip install tavily-python <br>
 pip install sacrebleu <br>
 pip install requests <br>

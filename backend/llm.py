@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
+
+import google.generativeai as genai
+
 from dotenv import load_dotenv
 from datetime import datetime
 from tavily import TavilyClient
@@ -19,6 +22,7 @@ load_dotenv()
 app = FastAPI()
 embedder = SentenceTransformer("BAAI/bge-m3")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 class Item(BaseModel):
@@ -194,7 +198,7 @@ async def query_llm(text: Item):
         """
 
     else:
-        context = ([i[0] for i in retrieved_docs])
+        context = ([i for i in retrieved_docs])
         prompt = f"""Generate a detailed travel itinerary in JSON format. 
             
             The itinerary must include:  
@@ -219,8 +223,7 @@ async def query_llm(text: Item):
             json_structure: {json_structure}
             make the itinerary in English language.
         """
-
-        # ถ้าภาษาไทยเพิ่มด้านบนด้วย ^^^^ ตรง activities + ข้างล่าง json_structure
+    # __________________ OpenAI __________________
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
@@ -234,6 +237,26 @@ async def query_llm(text: Item):
     )
     
     response_answer = response.choices[0].message.content
+    # _______________________________________________
+    
+    # __________________ Gemini __________________
+    # system_prompt = "You are an assistant that helps create a trip schedule."
+    # client = genai.GenerativeModel(
+    #     model_name="gemini-2.5-pro",
+    #     system_instruction=system_prompt
+    # )
+
+    # contents = [
+    #     {
+    #         'role': 'user',
+    #         'parts': prompt
+    #     }
+    # ]
+
+    # response = client.generate_content(contents) 
+    # response_answer = response.text
+    # ________________________________________________
+    
     response_answer = response_answer.strip().replace("\n", "").replace("```", "")
     if response_answer.startswith('json'):
         response_answer = response_answer[4:]
@@ -339,7 +362,7 @@ async def query_llm_fix(text: FixRequest):
             make the itinerary in English language.
         """ 
     else:
-        context = "\n".join([i[0] for i in retrieved_docs])
+        context = ([i for i in retrieved_docs])
         prompt = f"""Change the activities in this itinerary: {itinerary_json}
 
             Your task:
@@ -364,16 +387,40 @@ async def query_llm_fix(text: FixRequest):
             make the itinerary in English language.
         """
         
+    # __________________ OpenAI __________________
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": "You are an assistant that helps to refine and improve travel itineraries activity."},
-            # {"role": "system", "content": "You are an assistant that helps to refine travel itineraries in **thai language**."},
-            {"role": "user", "content": prompt},
-        ]
+            {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip."},
+            # {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip to **thai language**."},
+            {"role": "user", "content" : prompt},
+        ],
+        # reasoning={
+        #     "effort": "minimal"
+        # }
     )
     
     response_answer = response.choices[0].message.content
+    # _______________________________________________
+    
+    # __________________ Gemini __________________
+    # system_prompt = "You are an assistant that helps create a trip schedule."
+    # client = genai.GenerativeModel(
+    #     model_name="gemini-2.5-pro",
+    #     system_instruction=system_prompt
+    # )
+
+    # contents = [
+    #     {
+    #         'role': 'user',
+    #         'parts': prompt
+    #     }
+    # ]
+
+    # response = client.generate_content(contents) 
+    # response_answer = response.text
+    # ________________________________________________
+    
     response_answer = response_answer.strip().replace("\n", "").replace("```", "")
     if response_answer.startswith('json'):
         response_answer = response_answer[4:]
