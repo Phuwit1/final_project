@@ -32,10 +32,10 @@ class Item(BaseModel):
     text: str
 
 class FixRequest(BaseModel):
-    text: str
     start_date : str
     end_date : str
     cities: list
+    text: str
     itinerary_data: Dict[str, Any]
 
 class Location(BaseModel):
@@ -223,6 +223,7 @@ async def query_llm(text: Item):
             json_structure: {json_structure}
             make the itinerary in English language.
         """
+
     # __________________ OpenAI __________________
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
@@ -240,9 +241,9 @@ async def query_llm(text: Item):
     # _______________________________________________
     
     # __________________ Gemini __________________
-    # system_prompt = "You are an assistant that helps create a trip schedule."
+    # system_prompt = "You are an assistant that helps to make a time schedule for a trip."
     # client = genai.GenerativeModel(
-    #     model_name="gemini-2.5-pro",
+    #     model_name="gemini-2.5-flash",
     #     system_instruction=system_prompt
     # )
 
@@ -269,7 +270,7 @@ async def query_llm(text: Item):
 
     return data
 
-
+@app.post("/llm/fix/")
 async def query_llm_fix(text: FixRequest):
     
     date_start_str = text.start_date
@@ -341,9 +342,9 @@ async def query_llm_fix(text: FixRequest):
         prompt = f"""Change the activities in this itinerary: {itinerary_json}
 
             Your task:
-            1. MODIFY THE ACTIVITIES based on this user request: {text.text}
-            2. Use this additional text and cities to improve the travel plan: {tavily_context}
-            3. You MUST REPLACE the original activities with new ones that align with the user's request
+            - MODIFY THE ACTIVITIES based on this user request: {text.text}
+            - Use this additional text and cities to improve the travel plan: {tavily_context}
+            - You MUST REPLACE the original activities with new ones that align with the user's request
 
             Requirements for the modified itinerary:
             - Maintain the same structure with multiple days (YYYY-MM-DD format)
@@ -358,6 +359,7 @@ async def query_llm_fix(text: FixRequest):
             
             DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
             *** NO double quotes at the start and end of the JSON response. ***
+            *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
             **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
             make the itinerary in English language.
         """ 
@@ -366,9 +368,9 @@ async def query_llm_fix(text: FixRequest):
         prompt = f"""Change the activities in this itinerary: {itinerary_json}
 
             Your task:
-            1. MODIFY THE ACTIVITIES based on this user request: {text.text}
-            2. Use this additional context to improve the travel plan: {context}
-            3. You MUST REPLACE the original activities with new ones that align with the user's request
+            - MODIFY THE ACTIVITIES based on this user request: {text.text}
+            - Use this additional context to improve the travel plan: {context}
+            - You MUST REPLACE the original activities with new ones that align with the user's request
 
             Requirements for the modified itinerary:
             - Maintain the same structure with multiple days (YYYY-MM-DD format)
@@ -383,6 +385,7 @@ async def query_llm_fix(text: FixRequest):
             
             DO NOT keep the original activities. Your response should only contain the modified JSON following this structure: {json_structure}.
             *** NO double quotes at the start and end of the JSON response. ***
+            *** The trip starts on **{text.start_date}** 'DD-MM-YYYY' and ends on **{text.end_date}** 'DD-MM-YYYY'. ***
             **** IMPORTANT: The activities in your response must be DIFFERENT from the original itinerary. ****
             make the itinerary in English language.
         """

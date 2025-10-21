@@ -181,22 +181,24 @@ def query_documents(start_date, end_date, cities, query_text):
     cur.close()
     conn.close()
     output = [i[0] for i in results]
+    score = [i[1] for i in results]
     print("Top K: ",k , "\nQuery result: ", len(output))
-    return output
+    return output, score
 
 
 # Example usage
 def main():
     evaluator = TripPlannerEvaluator()
-    start_date = "4/07/2025"
-    end_date = "10/07/2025"
-    cities = ["Tokyo"]
-    text = "onsens shopping sushi"
+    start_date = "02/03/2025"
+    end_date = "11/03/2025"
+    cities = ["Tokyo", "Kyoto"]
+    text = "cherry blossoms sushi"
     
 
     references = [[]]
     print("Querying documents...")
-    for i in query_documents(start_date, end_date, cities, text):
+    output, score = query_documents(start_date, end_date, cities, text)
+    for i in output:
         payload = {"itinerary": i, "start_date": start_date, "end_date": end_date}
         references[0].append(requests.post("http://127.0.0.1:8001/sum", json=payload).text)
         print(len(references[0]))
@@ -241,7 +243,6 @@ def main():
         json.dump(parsed, f, ensure_ascii=False, indent=4)
     
     
-    
     print("=== Multiple Reference Evaluation ===")
     results = evaluator.evaluate_batch(references, candidates)
     for k, v in results.items():
@@ -257,6 +258,11 @@ def main():
         f.write("=== Multiple Reference Evaluation ===\n")
         for k, v in results.items():
             f.write(f"{k}: {v:.4f}\n")
+        f.write("\n\n\n\nRag results:\n")
+        f.write(f"Average score: {sum(score) / len(references[0])}\n")
+        f.write(f"Each score: {score} \n")
+        f.write(f"\n\n\nContexts:\n {output}")
+        
 
 if __name__ == "__main__":
     main()
