@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import numpy as np
 from typing import List, Dict
-import re, requests, psycopg2, os, math, json
+import re, requests, psycopg2, os, math, json, time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -201,6 +201,9 @@ def main():
     for i in output:
         payload = {"itinerary": i, "start_date": start_date, "end_date": end_date}
         references[0].append(requests.post("http://127.0.0.1:8001/sum", json=payload).text)
+        # Delay
+        # time.sleep(30)  # 30 seconds delay between requests
+        
         print(len(references[0]))
     print("done querying")
     

@@ -243,7 +243,7 @@ async def query_llm(text: Item):
     # __________________ Gemini __________________
     # system_prompt = "You are an assistant that helps to make a time schedule for a trip."
     # client = genai.GenerativeModel(
-    #     model_name="gemini-2.5-flash",
+    #     model_name="gemini-2.5-pro",
     #     system_instruction=system_prompt
     # )
 
