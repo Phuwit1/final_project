@@ -174,15 +174,15 @@ def query_documents(start_date, end_date, cities, query_text):
     query_count = """
         SELECT COUNT(*) 
         FROM documents
-        WHERE cities @> %s AND months @> %s AND duration_days = %s
+        WHERE cities @> %s AND months @> %s AND duration_days BETWEEN %s AND %s
     """
-    cur.execute(query_count, (cities, months, num_days))
+    cur.execute(query_count, (cities, months, num_days_1, num_days_2))
     num_docs = cur.fetchall()[0][0]
     k = choose_k_density(num_days, months, cities, num_docs)
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
-        WHERE cities @> %s AND months @> %s AND duration_days = %s
+        WHERE cities @> %s AND months @> %s AND duration_days BETWEEN %s AND %s
         ORDER BY similarity_score ASC
         LIMIT %s
     """
@@ -201,10 +201,10 @@ def query_documents(start_date, end_date, cities, query_text):
 # Example usage
 def main():
     evaluator = TripPlannerEvaluator()
-    start_date = "02/03/2025"
-    end_date = "11/03/2025"
-    cities = ["Tokyo", "Kyoto"]
-    text = "cherry blossoms sushi"
+    start_date="10/07/2025"
+    end_date="16/07/2025"
+    cities=["Sapporo", "Furano", "Biei", "Otaru"]
+    text="7-day Hokkaido trip to see summer flower fields and local festivals."
     
 
     references = [[]]
