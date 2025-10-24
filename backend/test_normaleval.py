@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 from datetime import datetime
 import numpy as np
 from typing import List, Dict
-import re, requests, psycopg2, os, math, json
+import re, requests, psycopg2, os, math, json, time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -149,6 +149,18 @@ def query_documents(start_date, end_date, cities, query_text):
     date_end = datetime.strptime(end_date, "%d/%m/%Y")
     num_days = (date_end - date_start).days + 1
     
+    num_k = 0
+    
+    if num_days <= 3:
+        num_k = 1
+    if num_days > 3 and num_days <=7:
+        num_k = 2
+    else:
+        num_k = 3
+        
+    num_days_1 = max(1, num_days - num_k)
+    num_days_2 = num_days + num_k
+    
     months = []
     # Iterate over each month in the date range
     current = date_start
@@ -187,7 +199,7 @@ def query_documents(start_date, end_date, cities, query_text):
     """
     # where @> or && dont know use @> or &&
 
-    cur.execute(query, (query_embedding_str, cities, months, num_days, k))
+    cur.execute(query, (query_embedding_str, cities, months, num_days_1, num_days_2, k))
     results = cur.fetchall()
     cur.close()
     conn.close()
@@ -211,6 +223,9 @@ def main():
     for i in output:
         payload = {"itinerary": i, "start_date": start_date, "end_date": end_date}
         references[0].append(requests.post("http://127.0.0.1:8001/sum", json=payload).text)
+        # Delay
+        # time.sleep(30)  # 30 seconds delay between requests
+        
         print(len(references[0]))
     print("done querying")
     

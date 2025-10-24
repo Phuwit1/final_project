@@ -98,7 +98,6 @@ def main(text: Item):
         """
 
      # __________________ OpenAI __________________
-        # ถ้าภาษาไทยเพิ่มด้านบนด้วย ^^^^ ตรง activities + ข้างล่าง json_structure
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
@@ -117,7 +116,7 @@ def main(text: Item):
     # __________________ Gemini __________________
     # system_prompt = "You are an assistant that helps create a trip schedule."
     # client = genai.GenerativeModel(
-    #     model_name="gemini-2.5-flash",
+    #     model_name="gemini-2.5-pro",
     #     system_instruction=system_prompt
     # )
 
