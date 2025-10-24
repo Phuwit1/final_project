@@ -176,7 +176,7 @@ def query_documents(start_date, end_date, cities, query_text):
         FROM documents
         WHERE cities @> %s AND months @> %s AND duration_days BETWEEN %s AND %s
     """
-    cur.execute(query_count, (cities, months, num_days))
+    cur.execute(query_count, (cities, months, num_days_1, num_days_2))
     num_docs = cur.fetchall()[0][0]
     k = choose_k_density(num_days, months, cities, num_docs)
     query = """

@@ -64,9 +64,21 @@ def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=15):
     # จำกัดไม่ให้เกิน max_k
     return min(max_k, max(base_k, k))
     
-def query_documents(num_days_1, num_days_2, months, cities, query_text):
+def query_documents(num_days, months, cities, query_text):
     db_url = os.getenv('DATABASE_LLM_URL')
     conn = psycopg2.connect(db_url)
+
+    num_k = 0
+    
+    if num_days <= 3:
+        num_k = 1
+    if num_days > 3 and num_days <=7:
+        num_k = 2
+    else:
+        num_k = 3
+        
+    num_days_1 = max(1, num_days - num_k)
+    num_days_2 = num_days + num_k
 
     cur = conn.cursor()
     query_embedding = embedder.encode(query_text).tolist()
@@ -127,18 +139,6 @@ async def query_llm(text: Item):
     date_end = datetime.strptime(date_end_str, "%d/%m/%Y")
     num_days = (date_end - date_start).days + 1
     
-    num_k = 0
-    
-    if num_days <= 3:
-        num_k = 1
-    if num_days > 3 and num_days <=7:
-        num_k = 2
-    else:
-        num_k = 3
-        
-    num_days_1 = max(1, num_days - num_k)
-    num_days_2 = num_days + num_k
-    
     query_txt = f"{text.text}"
     months = []
     # Iterate over each month in the date range
@@ -154,7 +154,7 @@ async def query_llm(text: Item):
             current = datetime(current.year, current.month + 1, 1)
 
     # print(months)
-    retrieved_docs = query_documents(num_days_1, num_days_2, months, text.cities, query_txt)
+    retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
     season_data = get_season_data()
     json_structure = """
     {
@@ -303,17 +303,6 @@ async def query_llm_fix(text: FixRequest):
     date_end = datetime.strptime(date_end_str, "%d/%m/%Y")
     num_days = (date_end - date_start).days + 1
            
-    num_k = 0
-    
-    if num_days <= 3:
-        num_k = 1
-    if num_days > 3 and num_days <=7:
-        num_k = 2
-    else:
-        num_k = 3
-        
-    num_days_1 = max(1, num_days - num_k)
-    num_days_2 = num_days + num_k
     
     query_txt = f"{text.text}"
     months = []
@@ -330,7 +319,7 @@ async def query_llm_fix(text: FixRequest):
             current = datetime(current.year, current.month + 1, 1)
 
     # print(months)
-    retrieved_docs = query_documents(num_days_1, num_days_2, months, text.cities, query_txt)
+    retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
     season_data = get_season_data()
     # Convert itinerary_data to a JSON string for the prompt
     itinerary_json = str(json.dumps(text.itinerary_data))
