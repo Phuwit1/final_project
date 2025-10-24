@@ -42,15 +42,26 @@ class Location(BaseModel):
     itinerary_data: Dict[str, Any]
 
 
-def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=20):
-    length_factor = num_days // 2     
-    
+def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=15):
+    """
+    Adaptive-K selection based on trip duration, number of cities, months, and document density.
+    """
+    # ปัจจัยตามจำนวนวัน — ยิ่งทริปยาว ควรใช้บริบทมากขึ้น
+    length_factor = max(1, round(num_days / 3))
+
+    # ปัจจัยจำนวนเมือง — ยิ่งหลายเมือง ควรเพิ่ม K เพื่อครอบคลุมกิจกรรมหลายพื้นที่
     city_factor = len(cities)
-    
-    density_factor = int(math.log1p(int(num_docs))) // 2
-    
-    month_factor = len(months) // 2  
-    k = base_k + length_factor + city_factor + density_factor + month_factor
+
+    # ปัจจัยจำนวนเดือน — บ่งบอกถึงฤดูกาลที่หลากหลาย
+    month_factor = max(1, round(len(months) / 2))
+
+    # ปัจจัยความหนาแน่นของเอกสารในฐานข้อมูล — ถ้ามีเอกสารมาก ใช้ log เพื่อลดความชัน
+    density_factor = max(0, round(math.log1p(num_docs) / 2))
+
+    # รวมค่าแต่ละปัจจัยเข้ากับ base_k
+    k = base_k + length_factor + city_factor + month_factor + density_factor
+
+    # จำกัดไม่ให้เกิน max_k
     return min(max_k, max(base_k, k))
     
 def query_documents(num_days, months, cities, query_text):
@@ -67,7 +78,8 @@ def query_documents(num_days, months, cities, query_text):
     """
     cur.execute(query_count, (cities, months, num_days))
     num_docs = cur.fetchall()[0][0]
-    k = choose_k_density(num_days, months, cities, num_docs)
+    # k = choose_k_density(num_days, months, cities, num_docs)
+    k = 3
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
@@ -241,7 +253,7 @@ async def query_llm(text: Item):
     # _______________________________________________
     
     # __________________ Gemini __________________
-    # system_prompt = "You are an assistant that helps to make a time schedule for a trip."
+    # system_prompt = "You are an assistant that helps create a trip schedule."
     # client = genai.GenerativeModel(
     #     model_name="gemini-2.5-flash",
     #     system_instruction=system_prompt
@@ -256,7 +268,7 @@ async def query_llm(text: Item):
 
     # response = client.generate_content(contents) 
     # response_answer = response.text
-    # ________________________________________________
+    # # ________________________________________________
     
     response_answer = response_answer.strip().replace("\n", "").replace("```", "")
     if response_answer.startswith('json'):
@@ -391,37 +403,37 @@ async def query_llm_fix(text: FixRequest):
         """
         
     # __________________ OpenAI __________________
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip."},
-            # {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip to **thai language**."},
-            {"role": "user", "content" : prompt},
-        ],
-        # reasoning={
-        #     "effort": "minimal"
-        # }
-    )
+    # response = client.chat.completions.create(
+    #     model="gpt-4.1-mini",
+    #     messages=[
+    #         {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip."},
+    #         # {"role": "system", "content" : "You are an assistant that helps to make a time schedule for a trip to **thai language**."},
+    #         {"role": "user", "content" : prompt},
+    #     ],
+    #     # reasoning={
+    #     #     "effort": "minimal"
+    #     # }
+    # )
     
-    response_answer = response.choices[0].message.content
+    # response_answer = response.choices[0].message.content
     # _______________________________________________
     
     # __________________ Gemini __________________
-    # system_prompt = "You are an assistant that helps create a trip schedule."
-    # client = genai.GenerativeModel(
-    #     model_name="gemini-2.5-pro",
-    #     system_instruction=system_prompt
-    # )
+    system_prompt = "You are an assistant that helps create a trip schedule."
+    client = genai.GenerativeModel(
+        model_name="gemini-2.5-pro",
+        system_instruction=system_prompt
+    )
 
-    # contents = [
-    #     {
-    #         'role': 'user',
-    #         'parts': prompt
-    #     }
-    # ]
+    contents = [
+        {
+            'role': 'user',
+            'parts': prompt
+        }
+    ]
 
-    # response = client.generate_content(contents) 
-    # response_answer = response.text
+    response = client.generate_content(contents) 
+    response_answer = response.text
     # ________________________________________________
     
     response_answer = response_answer.strip().replace("\n", "").replace("```", "")

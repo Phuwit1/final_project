@@ -122,15 +122,26 @@ class TripPlannerEvaluator:
         
         return {k: np.mean(v) for k, v in all_scores.items()}
 
-def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=20):
-    length_factor = num_days // 2     
-    
+def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=15):
+    """
+    Adaptive-K selection based on trip duration, number of cities, months, and document density.
+    """
+    # ปัจจัยตามจำนวนวัน — ยิ่งทริปยาว ควรใช้บริบทมากขึ้น
+    length_factor = max(1, round(num_days / 3))
+
+    # ปัจจัยจำนวนเมือง — ยิ่งหลายเมือง ควรเพิ่ม K เพื่อครอบคลุมกิจกรรมหลายพื้นที่
     city_factor = len(cities)
-    
-    density_factor = int(math.log1p(int(num_docs)))  // 2
-    
-    month_factor = len(months) // 2  
-    k = base_k + length_factor + city_factor + density_factor + month_factor
+
+    # ปัจจัยจำนวนเดือน — บ่งบอกถึงฤดูกาลที่หลากหลาย
+    month_factor = max(1, round(len(months) / 2))
+
+    # ปัจจัยความหนาแน่นของเอกสารในฐานข้อมูล — ถ้ามีเอกสารมาก ใช้ log เพื่อลดความชัน
+    density_factor = max(0, round(math.log1p(num_docs) / 2))
+
+    # รวมค่าแต่ละปัจจัยเข้ากับ base_k
+    k = base_k + length_factor + city_factor + month_factor + density_factor
+
+    # จำกัดไม่ให้เกิน max_k
     return min(max_k, max(base_k, k))
     
 def query_documents(start_date, end_date, cities, query_text):
@@ -152,7 +163,6 @@ def query_documents(start_date, end_date, cities, query_text):
             current = datetime(current.year, current.month + 1, 1)    
     
     
-    
     db_url = os.getenv('DATABASE_LLM_URL')
     conn = psycopg2.connect(db_url)
 
@@ -167,6 +177,7 @@ def query_documents(start_date, end_date, cities, query_text):
     cur.execute(query_count, (cities, months, num_days))
     num_docs = cur.fetchall()[0][0]
     k = choose_k_density(num_days, months, cities, num_docs)
+    # k = 3
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
@@ -183,21 +194,20 @@ def query_documents(start_date, end_date, cities, query_text):
     output = [i[0] for i in results]
     score = [i[1] for i in results]
     print("Top K: ",k , "\nQuery result: ", len(output))
-    return output, score
+    return output, score, num_docs
 
 
 # Example usage
 def main():
     evaluator = TripPlannerEvaluator()
-    start_date = "02/03/2025"
-    end_date = "11/03/2025"
-    cities = ["Tokyo", "Kyoto"]
-    text = "cherry blossoms sushi"
-    
+    start_date="15/11/2025"
+    end_date="22/11/2025"
+    cities=["Hakone"]
+    text="Looking for a relaxing onsen trip near Mount Fuji"
 
     references = [[]]
     print("Querying documents...")
-    output, score = query_documents(start_date, end_date, cities, text)
+    output, score, num_docs = query_documents(start_date, end_date, cities, text)
     for i in output:
         payload = {"itinerary": i, "start_date": start_date, "end_date": end_date}
         references[0].append(requests.post("http://127.0.0.1:8001/sum", json=payload).text)
@@ -259,6 +269,7 @@ def main():
         for k, v in results.items():
             f.write(f"{k}: {v:.4f}\n")
         f.write("\n\n\n\nRag results:\n")
+        f.write(f"Num Doc: {num_docs}\n")
         f.write(f"Average score: {sum(score) / len(references[0])}\n")
         f.write(f"Each score: {score} \n")
         f.write(f"\n\n\nContexts:\n {output}")
