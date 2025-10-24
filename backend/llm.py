@@ -53,7 +53,7 @@ def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=20):
     k = base_k + length_factor + city_factor + density_factor + month_factor
     return min(max_k, max(base_k, k))
     
-def query_documents(num_days, months, cities, query_text):
+def query_documents(num_days_1, num_days_2, months, cities, query_text):
     db_url = os.getenv('DATABASE_LLM_URL')
     conn = psycopg2.connect(db_url)
 
@@ -63,21 +63,21 @@ def query_documents(num_days, months, cities, query_text):
     query_count = """
         SELECT COUNT(*) 
         FROM documents
-        WHERE cities @> %s AND months @> %s AND duration_days = %s
+        WHERE cities @> %s AND months @> %s AND duration_days BETWEEN %s AND %s
     """
-    cur.execute(query_count, (cities, months, num_days))
+    cur.execute(query_count, (cities, months, num_days_1, num_days_2))
     num_docs = cur.fetchall()[0][0]
     k = choose_k_density(num_days, months, cities, num_docs)
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
-        WHERE cities @> %s AND months @> %s AND duration_days = %s
+        WHERE cities @> %s AND months @> %s AND duration_days BETWEEN %s AND %s
         ORDER BY similarity_score ASC
         LIMIT %s
     """
     # where @> or && dont know use @> or &&
 
-    cur.execute(query, (query_embedding_str, cities, months, num_days, k))
+    cur.execute(query, (query_embedding_str, cities, months, num_days_1, num_days_2, k))
     results = cur.fetchall()
     cur.close()
     conn.close()
@@ -115,6 +115,18 @@ async def query_llm(text: Item):
     date_end = datetime.strptime(date_end_str, "%d/%m/%Y")
     num_days = (date_end - date_start).days + 1
     
+    num_k = 0
+    
+    if num_days <= 3:
+        num_k = 1
+    if num_days > 3 and num_days <=7:
+        num_k = 2
+    else:
+        num_k = 3
+        
+    num_days_1 = max(1, num_days - num_k)
+    num_days_2 = num_days + num_k
+    
     query_txt = f"{text.text}"
     months = []
     # Iterate over each month in the date range
@@ -130,7 +142,7 @@ async def query_llm(text: Item):
             current = datetime(current.year, current.month + 1, 1)
 
     # print(months)
-    retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
+    retrieved_docs = query_documents(num_days_1, num_days_2, months, text.cities, query_txt)
     season_data = get_season_data()
     json_structure = """
     {
@@ -278,6 +290,18 @@ async def query_llm_fix(text: FixRequest):
     date_start = datetime.strptime(date_start_str, "%d/%m/%Y")
     date_end = datetime.strptime(date_end_str, "%d/%m/%Y")
     num_days = (date_end - date_start).days + 1
+           
+    num_k = 0
+    
+    if num_days <= 3:
+        num_k = 1
+    if num_days > 3 and num_days <=7:
+        num_k = 2
+    else:
+        num_k = 3
+        
+    num_days_1 = max(1, num_days - num_k)
+    num_days_2 = num_days + num_k
     
     query_txt = f"{text.text}"
     months = []
@@ -294,7 +318,7 @@ async def query_llm_fix(text: FixRequest):
             current = datetime(current.year, current.month + 1, 1)
 
     # print(months)
-    retrieved_docs = query_documents(num_days, months, text.cities, query_txt)
+    retrieved_docs = query_documents(num_days_1, num_days_2, months, text.cities, query_txt)
     season_data = get_season_data()
     # Convert itinerary_data to a JSON string for the prompt
     itinerary_json = str(json.dumps(text.itinerary_data))

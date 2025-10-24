@@ -137,7 +137,19 @@ def query_documents(start_date, end_date, cities, query_text):
     date_start = datetime.strptime(start_date, "%d/%m/%Y")
     date_end = datetime.strptime(end_date, "%d/%m/%Y")
     num_days = (date_end - date_start).days + 1
+ 
+    num_k = 0
     
+    if num_days <= 3:
+        num_k = 1
+    if num_days > 3 and num_days <=7:
+        num_k = 2
+    else:
+        num_k = 3
+        
+    num_days_1 = max(1, num_days - num_k)
+    num_days_2 = num_days + num_k
+   
     months = []
     # Iterate over each month in the date range
     current = date_start
@@ -162,7 +174,7 @@ def query_documents(start_date, end_date, cities, query_text):
     query_count = """
         SELECT COUNT(*) 
         FROM documents
-        WHERE cities @> %s AND months @> %s AND duration_days = %s
+        WHERE cities @> %s AND months @> %s AND duration_days BETWEEN %s AND %s
     """
     cur.execute(query_count, (cities, months, num_days))
     num_docs = cur.fetchall()[0][0]
@@ -170,13 +182,13 @@ def query_documents(start_date, end_date, cities, query_text):
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
-        WHERE cities @> %s AND months @> %s AND duration_days = %s
+        WHERE cities @> %s AND months @> %s AND duration_days BETWEEN %s AND %s
         ORDER BY similarity_score ASC
         LIMIT %s
     """
     # where @> or && dont know use @> or &&
 
-    cur.execute(query, (query_embedding_str, cities, months, num_days, k))
+    cur.execute(query, (query_embedding_str, cities, months, num_days_1, num_days_2, k))
     results = cur.fetchall()
     cur.close()
     conn.close()
