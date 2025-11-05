@@ -131,6 +131,7 @@ def choose_k_density(num_days, months, cities, num_docs, base_k=2, max_k=20):
     
     month_factor = len(months) // 2  
     k = base_k + length_factor + city_factor + density_factor + month_factor
+    return min(max_k, max(base_k, k))
     
 def query_documents(start_date, end_date, cities, query_text):
     date_start = datetime.strptime(start_date, "%d/%m/%Y")
@@ -163,7 +164,6 @@ def query_documents(start_date, end_date, cities, query_text):
             current = datetime(current.year, current.month + 1, 1)    
     
     
-    
     db_url = os.getenv('DATABASE_LLM_URL')
     conn = psycopg2.connect(db_url)
 
@@ -178,6 +178,7 @@ def query_documents(start_date, end_date, cities, query_text):
     cur.execute(query_count, (cities, months, num_days_1, num_days_2))
     num_docs = cur.fetchall()[0][0]
     k = choose_k_density(num_days, months, cities, num_docs)
+    # k = 3
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
@@ -200,11 +201,10 @@ def query_documents(start_date, end_date, cities, query_text):
 # Example usage
 def main():
     evaluator = TripPlannerEvaluator()
-    start_date="10/07/2025"
-    end_date="16/07/2025"
-    cities=["Sapporo", "Furano", "Biei", "Otaru"]
-    text="7-day Hokkaido trip to see summer flower fields and local festivals."
-    
+    start_date="03/04/2025"
+    end_date="09/04/2025"
+    cities=["Nikko"]
+    text="Plan a spring trip with cherry blossoms, view temple and a cultural day in Nikko."
 
     references = [[]]
     print("Querying documents...")

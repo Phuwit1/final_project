@@ -90,8 +90,8 @@ def query_documents(num_days, months, cities, query_text):
     """
     cur.execute(query_count, (cities, months, num_days_1, num_days_2))
     num_docs = cur.fetchall()[0][0]
-    # k = choose_k_density(num_days, months, cities, num_docs)
-    k = 3
+    k = choose_k_density(num_days, months, cities, num_docs)
+    # k = 3
     query = """
         SELECT content, embedding <=> %s::vector AS similarity_score
         FROM documents
