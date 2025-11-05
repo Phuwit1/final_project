@@ -240,6 +240,7 @@ async def query_llm(text: Item):
         
 
             Ensure the response **ONLY** contains valid JSON without any explanations or additional text. *** Use the following context: {context}. ***
+            And base on specialy user request {text.text} and {text.cities}. If {text.cities} and {text.text} are not realistically possible due to distance, time, or season, adjust them as needed
             **** Verify that the itinerary aligns with the travel period ({text.start_date}–{text.end_date}) and includes manageable distances and travel times between locations ****
             
             *** NO double quotes at the start and end of the JSON response. ***

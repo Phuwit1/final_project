@@ -201,10 +201,11 @@ def query_documents(start_date, end_date, cities, query_text):
 # Example usage
 def main():
     evaluator = TripPlannerEvaluator()
-    start_date="03/04/2025"
-    end_date="09/04/2025"
-    cities=["Nikko"]
-    text="Plan a spring trip with cherry blossoms, view temple and a cultural day in Nikko."
+    start_date = "10/04/2026"
+    end_date = "16/04/2026"
+    cities = ["Tokyo", "Hakone"]
+    text = "Enjoys nature and scenic views. Looking for cherry blossoms and Mount Fuji sightseeing."
+    
 
     references = [[]]
     print("Querying documents...")
