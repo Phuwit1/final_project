@@ -4,3 +4,4 @@
 /__pycache__/*
 /.deepeval/*
 /log/*
+/routers/__pycache__/*
