@@ -1,8 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Share, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard'; // ต้องลง: npx expo install expo-clipboard
+import * as Linking from 'expo-linking'; 
+// import API function ของคุณ (สมมติว่าใช้ axios หรือ fetch)
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // สมมติว่าเก็บ token ไว้ที่นี่
 
 interface TripCardProps {
   name: string;
@@ -13,22 +19,49 @@ interface TripCardProps {
   image: string;
   budget?: number; // เพิ่ม budget แบบ optional
   tripId?: string; // สำหรับส่ง id ไปหน้า budget ถ้าต้องใช้
+  onGroupCreated?: (newGroupData: any) => void;
 }
 
-const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, tripId,}) => {
+const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, tripId, onGroupCreated}) => {
     const navigation = useNavigation<any>();
     const router = useRouter();
     console.log('tripId from props:', tripId);
     const [isPressed, setIsPressed] = useState(false);
 
+    const [loading, setLoading] = useState(false);
+    const [groupCode, setGroupCode] = useState<string | null>(null);
 
     const goToBudget = () => {
       router.push(`/trip/${tripId}/budget`); // ให้คุณตั้งชื่อหน้านี้ไว้ใน navigation
     };
 
-    const handleCreateGroup = () => {
-    console.log('สร้างกลุ่มสำหรับ Trip ID:', tripId);
-    // เรียก API หรือไปหน้า Create Group ได้เลย
+    const handleCreateGroup = async () => {
+    setLoading(true);
+    try {
+        const token = await AsyncStorage.getItem('access_token');// ดึง Token
+        console.log("👉 Sending Token:", token);
+        // เปลี่ยน URL ตาม IP เครื่องคุณ
+        const response = await axios.post(
+            `http://192.168.1.45:8000/trip_group/create_from_plan/${tripId}`, 
+            {}, 
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        const newGroup = response.data;
+        setGroupCode(newGroup.uniqueCode);
+        
+        Alert.alert("Success", "Trip Group Created Successfully!");
+        
+        if (onGroupCreated) {
+            onGroupCreated(newGroup);
+        }
+
+    } catch (error) {
+        console.error(error);
+        Alert.alert("Error", "Failed to create group.");
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (

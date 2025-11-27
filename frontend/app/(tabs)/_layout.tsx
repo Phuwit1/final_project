@@ -1,4 +1,4 @@
-import { Link, Tabs } from 'expo-router';
+import { Link, Tabs, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Platform } from 'react-native';
 import { View, TouchableOpacity, Text, StyleSheet, Animated } from 'react-native';
@@ -13,7 +13,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   return (
@@ -73,7 +73,13 @@ export default function TabLayout() {
                 <Text style={styles.actionText}>Create Trip</Text>
               </TouchableOpacity>
             </Link>
-            <TouchableOpacity style={styles.actionButtonRight}>
+            <TouchableOpacity 
+              style={styles.actionButtonRight}
+              onPress={() => {
+                setOpen(false); // ปิดเมนู
+                router.push('/(modals)/join-trip'); // เปิดหน้า Join Trip (Popup)
+              }}
+            >
               <Text style={styles.actionText}>Join Trip</Text>
             </TouchableOpacity>
           </View>
