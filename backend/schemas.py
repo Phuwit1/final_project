@@ -53,6 +53,7 @@ class TripPlan(BaseModel):
     day_of_trip: Optional[int] = None
     trip_id: Optional[int] = None
     
+    
 class TripSchedule(BaseModel):
     plan_id: int
     date: date  
@@ -80,3 +81,6 @@ class ChatBody(BaseModel):
 class City(BaseModel):
     id: int
     name: str
+
+class JoinGroupRequest(BaseModel):
+    unique_code: str

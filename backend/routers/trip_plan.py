@@ -16,9 +16,26 @@ async def read_trip_plan(db: Prisma = Depends(get_db), current_user = Depends(ge
         print("current_user_id:", current_user.customer_id)
 
         trip_plan = await db.tripplan.find_many(
-            where={"creator_id": current_user.customer_id},
+            where={
+                "OR" : [
+                    {"creator_id": current_user.customer_id},
+                    {
+                        "tripGroup": {
+                            "members": {
+                                "some": {
+                                    "customer_id": current_user.customer_id
+                                }
+                            }
+                        }
+                    }
+                    ]},
             include={
                 "schedules": True,
+                "tripGroup": {
+                    "include": {
+                        "members": True # ✅ สั่งให้ดึงสมาชิกมาด้วย
+                    }
+                },
             }
         )
         return trip_plan

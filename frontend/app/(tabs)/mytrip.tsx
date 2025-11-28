@@ -30,6 +30,9 @@ type Trip = {
   name_group: string;
   start_plan_date: string;
   end_plan_date: string;
+  tripGroup?: {
+    members: any[]; // หรือกำหนด Type Member ให้ชัดเจน
+  } | null;
 
 };
 
@@ -123,6 +126,7 @@ export default function TripListScreen() {
 
     const formattedDate = formatTripDateRange(item.start_plan_date, item.end_plan_date);
     
+    const memberCount = item.tripGroup?.members?.length || 1;
 
     return (
       <TouchableOpacity onPress={() => router.push(`/trip/${item.plan_id}`)}>
@@ -131,7 +135,7 @@ export default function TripListScreen() {
           date={formattedDate}
           duration={`${durationDays} วัน`}
           status={getStatus(item.start_plan_date, item.end_plan_date)}
-          people={1}
+          people={memberCount}
         />
       </TouchableOpacity>
     );

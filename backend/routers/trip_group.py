@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from prisma import Prisma
 import string, secrets
 from dependencies import get_db, get_current_user
-from schemas import TripGroup, GroupMember
+from schemas import TripGroup, GroupMember, JoinGroupRequest
 
 router = APIRouter(tags=["Trip"])
 
@@ -83,6 +83,131 @@ async def create_trip_group(trip_group: TripGroup, request: Request, db: Prisma 
 
     except Exception as e:
         return {"error": str(e)}
+    
+
+    # --- backend/routers/trip.py ---
+
+@router.post("/trip_group/create_from_plan/{plan_id}")
+async def create_group_from_plan(plan_id: int, request: Request, db: Prisma = Depends(get_db), current_user = Depends(get_current_user)):
+   
+    # 2. หา TripPlan ต้นทาง
+    trip_plan = await db.tripplan.find_unique(where={"plan_id": plan_id})
+    if not trip_plan:
+        raise HTTPException(status_code=404, detail="Trip Plan not found")
+    
+    # ตรวจสอบว่าเป็นคนสร้าง Plan หรือไม่
+    if trip_plan.creator_id != current_user.customer_id:
+        raise HTTPException(status_code=403, detail="Only the plan creator can create a group")
+
+    # 3. เช็คว่า Plan นี้มี Group อยู่แล้วหรือยัง
+    if trip_plan.trip_id is not None:
+         # กรณีมีอยู่แล้ว อาจจะคืนค่า Group เดิมกลับไป หรือแจ้ง Error ก็ได้
+         existing_group = await db.tripgroup.find_unique(where={"trip_id": trip_plan.trip_id})
+         return existing_group
+
+    try:
+        # 4. สร้าง Unique Code
+        unique_code = await generate_unique_code_not_exists(db)
+
+        # 5. สร้าง TripGroup + Add Member + Link TripPlan (ใช้ Transaction ผ่านการ Nest create)
+        # หมายเหตุ: Prisma Python รองรับ Nested writes
+        new_trip_group = await db.tripgroup.create(
+            data={
+                "start_date": trip_plan.start_plan_date,
+                "end_date": trip_plan.end_plan_date,
+                "owner_id": current_user.customer_id,
+                "uniqueCode": unique_code,
+                "description": "Group created from Trip Plan",
+                "plan_id": trip_plan.plan_id,
+                # เพิ่ม User เป็น Member คนแรกทันที
+                "members": {
+                    "create": {
+                        "customer_id": current_user.customer_id
+                    }
+                }
+            }
+        )
+
+        # 6. อัปเดต TripPlan ให้ชี้ไปที่ Group ใหม่
+        await db.tripplan.update(
+            where={"plan_id": plan_id},
+            data={"trip_id": new_trip_group.trip_id}
+        )
+        
+        return new_trip_group
+
+    except Exception as e:
+        print(f"Error creating group: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/trip_group/code/{unique_code}")
+async def get_trip_by_code(unique_code: str, db: Prisma = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        trip = await db.tripgroup.find_unique(
+            where={"uniqueCode": unique_code},
+            include={
+                "owner": True,
+                "members": True,
+                "tripPlan": True  # ✅ เพิ่ม: ดึง TripPlan มาด้วยเพื่อเอาชื่อกลุ่ม
+            }
+        )
+        if not trip:
+            raise HTTPException(status_code=404, detail="ไม่พบกลุ่มนี้")
+        
+        # เช็คสถานะสมาชิก
+        is_member = any(m.customer_id == current_user.customer_id for m in trip.members)
+        
+        # ✅ ดึงชื่อจาก TripPlan ถ้าไม่มีให้ใช้ "No Name"
+        group_name = trip.tripPlan.name_group if trip.tripPlan else "No Name"
+
+        return {
+            "trip_id": trip.trip_id,
+            "name_group": group_name,  # ✅ ส่งชื่อที่ดึงมากลับไปให้ Frontend
+            "description": trip.description,
+            "owner_name": f"{trip.owner.first_name} {trip.owner.last_name}",
+            "member_count": len(trip.members),
+            "start_date": trip.start_date,
+            "end_date": trip.end_date,
+            "is_member": is_member
+        }
+    except Exception as e:
+        print(f"Error getting trip by code: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/trip_group/join")
+async def join_group(data: JoinGroupRequest, request: Request, db: Prisma = Depends(get_db), current_user = Depends(get_current_user)):
+    # 1. ตรวจสอบ User
+   
+
+    # 2. หา Group จาก Code
+    trip_group = await db.tripgroup.find_unique(
+        where={"uniqueCode": data.unique_code},
+        include={"members": True}
+    )
+    
+    if not trip_group:
+        raise HTTPException(status_code=404, detail="Invalid Group Code")
+
+    # 3. เช็คว่าอยู่ในกลุ่มแล้วหรือยัง
+    is_member = any(m.customer_id == current_user.customer_id for m in trip_group.members)
+    if is_member:
+        return {"message": "Already a member", "trip_group": trip_group}
+
+    # 4. เพิ่ม Member
+    try:
+        await db.groupmember.create(
+            data={
+                "customer_id": current_user.customer_id,
+                "trip_id": trip_group.trip_id
+            }
+        )
+        
+        # return ข้อมูลกลุ่มล่าสุดกลับไป
+        updated_group = await db.tripgroup.find_unique(where={"trip_id": trip_group.trip_id})
+        return updated_group
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/trip_group/{trip_id}")
 async def update_trip_group(trip_id: int, trip_group: TripGroup, db: Prisma = Depends(get_db)):
