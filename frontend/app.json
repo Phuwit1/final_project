@@ -36,13 +36,13 @@
         }
       ],
       "expo-font",
-      [ 
+      [
         "expo-build-properties",
         {
           "android": {
             "kotlinVersion": "1.9.25"
           }
-        } 
+        }
       ]
     ],
     "experiments": {
@@ -53,8 +53,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "65e04b9e-ba11-4cea-9d08-b12a7ab624c5"
+        "projectId": "6c27fe26-f79e-4db9-be67-85731aaa4f1d"
       }
-    }
+    },
+    "owner": "65070184"
   }
 }
