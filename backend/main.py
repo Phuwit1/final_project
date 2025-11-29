@@ -57,7 +57,7 @@ app.add_middleware(
 @app.middleware("http")
 async def jwt_middleware(request: Request, call_next):
     
-    if request.url.path in ["/login", "/register", "/refresh-token",]:
+    if request.url.path in ["/login", "/register", "/refresh-token", "/google-login"]:
         return await call_next(request)
 
     auth = request.headers.get("Authorization")

@@ -84,3 +84,6 @@ class City(BaseModel):
 
 class JoinGroupRequest(BaseModel):
     unique_code: str
+
+class GoogleLoginRequest(BaseModel):
+    token: str

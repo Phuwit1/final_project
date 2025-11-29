@@ -11,6 +11,7 @@ pip install requests <br>
 pip install prisma <br>
 pip install xlrd // pip install pandas // pip install openpyxl //to pandas read xlxs <br>
 prisma generate
+pip install google-auth
 
 
 

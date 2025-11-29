@@ -3,11 +3,17 @@ from prisma import Prisma
 import bcrypt
 from jose import jwt, JWTError
 from datetime import datetime
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from schemas import GoogleLoginRequest
+import secrets
 
 from dependencies import get_db, create_access_token, create_refresh_token, SECRET_KEY, ALGORITHM
-from schemas import Customer, CustomerLogin, CustomerOut, TokenRefreshRequest
+from schemas import Customer, CustomerLogin, CustomerOut, TokenRefreshRequest, GoogleLoginRequest
 
 router = APIRouter(tags=["Auth"])
+
+GOOGLE_CLIENT_ID = "1061030412176-tmtkq6rgmr4biqpr8ir1sk902od0mu1e.apps.googleusercontent.com"
 
 @router.post("/refresh-token", response_model=CustomerOut)
 async def refresh_token(data: TokenRefreshRequest, db: Prisma = Depends(get_db)):
@@ -80,6 +86,81 @@ async def login(customer: CustomerLogin, db: Prisma = Depends(get_db)):
         data={"currentToken": access_token, "refreshToken": refresh_token}
     )
     return {"email": customer.email, "token": access_token, "refresh_token": refresh_token}
+
+@router.post("/google-login", response_model=CustomerOut)
+async def google_login(data: GoogleLoginRequest, db: Prisma = Depends(get_db)):
+    try:
+        # 1. ตรวจสอบ Token กับ Google
+        id_info = id_token.verify_oauth2_token(
+            data.token, 
+            google_requests.Request(), 
+            GOOGLE_CLIENT_ID
+        )
+
+        # 2. ดึงข้อมูล User จาก Token
+        email = id_info.get("email")
+        first_name = id_info.get("given_name", "")
+        last_name = id_info.get("family_name", "")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Invalid Google Token: Email not found")
+
+        # 3. เช็คว่ามี User ในระบบหรือยัง
+        user = await db.customer.find_unique(where={"email": email})
+
+        if not user:
+            # 4. ถ้ายังไม่มี -> สมัครสมาชิกให้อัตโนมัติ (Register)
+            # สร้างรหัสผ่านสุ่ม เพราะ login ผ่าน google ไม่ได้ใช้ password แต่ Database บังคับใส่
+            random_password = secrets.token_urlsafe(16) 
+            hashed_password = bcrypt.hashpw(random_password.encode(), bcrypt.gensalt()).decode()
+            
+            # สร้าง Token ของระบบเรา
+            access_token = create_access_token(email)
+            refresh_token = create_refresh_token(email)
+
+            user = await db.customer.create(
+                data={
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "email": email,
+                    "password": hashed_password, # รหัสผ่านสุ่ม
+                    "currentToken": access_token,
+                    "refreshToken": refresh_token,
+                    # phone_number และ birth_date อาจจะเป็น null ไปก่อน
+                }
+            )
+        else:
+            # 5. ถ้ามีแล้ว -> Login เลย (Update Token)
+            # เช็คว่า User นี้ Login ซ้อนเครื่องอื่นอยู่ไหม (Optional: ตาม Logic เดิมของคุณ)
+            if user.currentToken:
+                 # กรณีนี้อาจจะยอมให้ Login ทับไปเลย หรือจะ Block ก็ได้
+                 # แต่ปกติ Social Login มักจะยอมให้เข้าได้เลยเพื่อความสะดวก
+                 pass 
+
+            access_token = create_access_token(email)
+            refresh_token = create_refresh_token(email)
+
+            await db.customer.update(
+                where={"email": email},
+                data={
+                    "currentToken": access_token,
+                    "refreshToken": refresh_token
+                }
+            )
+
+        return {
+            "email": user.email,
+            "token": access_token,
+            "refresh_token": refresh_token
+        }
+
+    except ValueError as e:
+        # Token ไม่ถูกต้อง
+        raise HTTPException(status_code=401, detail="Invalid Google Token")
+    except Exception as e:
+        print(f"Google Login Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/logout")
 async def logout(request: Request, db: Prisma = Depends(get_db)):
