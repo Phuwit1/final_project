@@ -4,6 +4,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, Styl
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { API_URL } from '@/api.js'
 
 const API_BASE = 'http://192.168.1.45:8000';
 
@@ -28,7 +29,7 @@ export default function TripDetail() {
         const headers: any = { 'Content-Type': 'application/json' };
         if (token) headers.Authorization = `Bearer ${token}`;
 
-        const res = await axios.get(`${API_BASE}/trip_schedule/${planId}`, { headers });
+        const res = await axios.get(`${API_URL}/trip_schedule/${planId}`, { headers });
         // setPayload(res.data?.payload);
 
         const payload = res.data?.payload;
@@ -93,7 +94,7 @@ export default function TripDetail() {
       const endDate = schedule.itinerary[schedule.itinerary.length - 1]?.date ?? "";
 
       // 1) ส่งไปให้ LLM revise
-      const res = await axios.post(`${API_BASE}/llm/fix/`, 
+      const res = await axios.post(`${API_URL}/llm/fix/`, 
         { 
         start_date: toDDMMYYYY(startDate),
         end_date: toDDMMYYYY(endDate),
@@ -107,7 +108,7 @@ export default function TripDetail() {
     
 
       // 2) PUT กลับไปแก้ใน DB
-      await axios.put(`${API_BASE}/trip_schedule/${planId}`, 
+      await axios.put(`${API_URL}/trip_schedule/${planId}`, 
         { 
           plan_id: planId,
           payload: revised 

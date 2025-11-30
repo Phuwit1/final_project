@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import { useFocusEffect } from '@react-navigation/native';
-
+import { API_URL } from '@/api.js'
 
 
 dayjs.locale('th');
@@ -80,7 +80,7 @@ export default function Hometrip() {
             console.log("Trip ID:", trip_id );
             if (!token) return;
 
-            const res = await axios.get(`http://192.168.1.45:8000/trip_plan/${trip_id}`, {
+            const res = await axios.get(`${API_URL}/trip_plan/${trip_id}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
 

@@ -5,6 +5,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect } from 'react';
 import { router } from 'expo-router';
+import { API_URL } from '@/api.js'
 
 const CreateTripScreen = () => {
   const [tripName, setTripName] = useState('');
@@ -67,7 +68,7 @@ const CreateTripScreen = () => {
       end_plan_date: toYMD(endDate),    
     };
     console.log("Payload for create trip:", payload)
-    const res = await axios.post('http://192.168.1.45:8000/trip_plan', payload, {
+    const res = await axios.post(`${API_URL}/trip_plan`, payload, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

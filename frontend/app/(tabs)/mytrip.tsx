@@ -23,6 +23,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
+import { API_URL } from '@/api.js'
 
 
 type Trip = {
@@ -82,7 +83,7 @@ export default function TripListScreen() {
           return;
         }
 
-        const res = await axios.get('http://192.168.1.45:8000/trip_plan', {
+        const res = await axios.get(`${API_URL}/trip_plan`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

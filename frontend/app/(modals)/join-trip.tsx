@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '@/api.js'
 
 export default function JoinTripModal() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function JoinTripModal() {
       const token = await AsyncStorage.getItem('access_token');
       // ⚠️ เปลี่ยน IP เป็นของเครื่องคุณ
       const response = await axios.get(
-        `http://192.168.1.45:8000/trip_group/code/${searchCode}`,
+        `${API_URL}/trip_group/code/${searchCode}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -50,7 +51,7 @@ export default function JoinTripModal() {
     try {
       const token = await AsyncStorage.getItem('access_token');
       await axios.post(
-        `http://192.168.1.45:8000/trip_group/join`,
+        `${API_URL}/trip_group/join`,
         { unique_code: code },
         { headers: { Authorization: `Bearer ${token}` } }
       );

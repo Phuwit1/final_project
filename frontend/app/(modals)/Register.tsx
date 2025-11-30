@@ -3,6 +3,7 @@ import { View, Text, TextInput, Button, Alert, StyleSheet, ScrollView, Touchable
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { API_URL } from '@/api.js'
 
 export default function RegisterScreen({ navigation } : { navigation: any }) {
   const [form, setForm] = useState({
@@ -36,8 +37,8 @@ export default function RegisterScreen({ navigation } : { navigation: any }) {
         birth_date: form.birth_date.toISOString().split('T')[0], // ส่งเป็น YYYY-MM-DD
       };
 
-      const response = await axios.post('http://192.168.1.45:8000/register', payload);
-
+      // const response = await axios.post('http://192.168.1.45:8000/register', payload);
+      const response = await axios.post(`${API_URL}/register`, payload);
      
       Alert.alert(
         'สมัครสมาชิกสำเร็จ!',

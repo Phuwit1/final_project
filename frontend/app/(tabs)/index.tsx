@@ -6,6 +6,8 @@ import React, { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { useFocusEffect } from '@react-navigation/native';
+import { API_URL } from '@/api.js'
+
 
 export default function Home(){
   const [user, setUser] = useState<any>(null);
@@ -18,7 +20,7 @@ export default function Home(){
         console.log('No token found');
         return;
       }
-      const res = await axios.get('http://192.168.1.45:8000/user', {
+      const res = await axios.get(`${API_URL}/user`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

@@ -94,7 +94,7 @@ import LogoutButton from '@/components/ui/Logoutbutton';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { useRouter } from 'expo-router';
-
+import { API_URL } from '@/api.js'
 
 
 export default function ProfileScreen() {
@@ -117,7 +117,7 @@ export default function ProfileScreen() {
       return;
     }
 
-    const res = await axios.get('http://192.168.1.45:8000/user', {
+    const res = await axios.get(`${API_URL}/user`, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Cache-Control': 'no-cache',

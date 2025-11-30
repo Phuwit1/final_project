@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
+import { API_URL } from '@/api.js'
 // 👉 เปลี่ยนให้เป็นของโปรเจกต์คุณ (หรือ import จาก config)
 const API_BASE = 'http://192.168.1.45:8000';
 
@@ -117,7 +117,7 @@ const filteredCities = useMemo(() => {
 }, [cities, citySearch]);
 
 
-const CITIES_ENDPOINT = `${API_BASE}/cities`; // หรือ /cities
+const CITIES_ENDPOINT = `${API_URL}/cities`; // หรือ /cities
 
 useEffect(() => {
   let mounted = true;
@@ -167,7 +167,7 @@ const onCreateWithAI = async () => {
       end_plan_date: toYMD(endDate),
     };
     const created = await axios.post(
-      `${API_BASE}/trip_plan`,
+      `${API_URL}/trip_plan`,
       createPayload,
       { headers, timeout: 30000 }
     );
@@ -194,7 +194,7 @@ const onCreateWithAI = async () => {
 
     console.log("LLM request body:", llmBody);
 
-    const llm = await axios.post(`${API_BASE}/llm/`, llmBody, {
+    const llm = await axios.post(`${API_URL}/llm/`, llmBody, {
       headers,
       timeout: 45000,
     });
@@ -205,7 +205,7 @@ const onCreateWithAI = async () => {
 
 
     await axios.post(
-      `${API_BASE}/trip_schedule`,
+      `${API_URL}/trip_schedule`,
       {
         plan_id: planId,
         payload: data, 

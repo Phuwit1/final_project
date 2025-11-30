@@ -55,7 +55,8 @@ async def register(customer: Customer, db: Prisma = Depends(get_db)):
             "last_name": customer.last_name,
             "email": customer.email,
             "password": hashed,
-            "currentToken": access_token,
+            # "currentToken": access_token, <= idk what this is for registration
+            "currentToken": None,
             "refreshToken": refresh_token,
             "phone_number": customer.phone_number,
             "birth_date": birth_date,

@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { showMessage } from 'react-native-flash-message';
+import { API_URL } from '@/api.js'
 
 import {
   GoogleSignin,
@@ -26,7 +27,7 @@ export default function Login() {
   
   const handleLogin = async () => {
   try {
-    const response = await axios.post('http://192.168.1.45:8000/login', {
+    const response = await axios.post(`${API_URL}/login`, {
       email,
       password,
     });
