@@ -49,71 +49,66 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
-    Alert.alert('เข้าสู่ระบบด้วย Google');
-  // try {
-  //   console.log('Starting Google Sign-In...');
-  //   setIsSubmitting(true);
+    // Alert.alert('เข้าสู่ระบบด้วย Google');
+  try {
+    console.log('Starting Google Sign-In...');
+    setIsSubmitting(true);
     
-  //   // ตรวจสอบ Play Services
-  //   await GoogleSignin.hasPlayServices();
+    // ตรวจสอบ Play Services
+    await GoogleSignin.hasPlayServices();
     
-  //   const response = await GoogleSignin.signIn();
-  //   console.log('Sign-in response:', response);
+    const response = await GoogleSignin.signIn();
+    console.log('Sign-in response:', response);
     
-  //   if (isSuccessResponse(response)) {
-  //     const { idToken, user } = response.data;
-  //     const { name, email, photo } = user;
+    if (isSuccessResponse(response)) {
+      const { idToken, user } = response.data;
+      const name = user.name || "";  // กันไว้เผื่อเป็น null
+      const email = user.email;
+      const photo = user.photo || "";
+      
+      console.log('Google Sign-In successful:', { name, email });
 
-  //     console.log('Google Sign-In successful:', { name, email });
-
-  //     router.push({
-  //       pathname: '/(tabs)/profile',
-  //       params: { name, email, photo, idToken }
-  //     });
-  //   } else {
-  //     showMessage({ 
-  //       message: 'เข้าสู่ระบบด้วย Google ไม่สำเร็จ', 
-  //       type: 'danger' 
-  //     });
-  //   }
-  // } catch (error) {
-  //   console.error('Google Sign-In error:', error);
+      const backendRes = await axios.post('http://192.168.1.45:8000/google-login', { token: idToken });
+      const { token, refresh_token } = backendRes.data;
     
-  //   if (isErrorWithCode(error)) {
-  //     switch (error.code) {
-  //       case statusCodes.SIGN_IN_CANCELLED:
-  //         showMessage({ 
-  //           message: 'ยกเลิกการเข้าสู่ระบบ', 
-  //           type: 'info' 
-  //         });
-  //         break;
-  //       case statusCodes.IN_PROGRESS:
-  //         showMessage({ 
-  //           message: 'กำลังเข้าสู่ระบบ...', 
-  //           type: 'info' 
-  //         });
-  //         break;
-  //       case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
-  //         showMessage({ 
-  //           message: 'Google Play Services ไม่พร้อมใช้งาน', 
-  //           type: 'danger' 
-  //         });
-  //         break;
-  //       default:
-  //         showMessage({ 
-  //           message: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ', 
-  //           type: 'danger' 
-  //         });
-  //     }
-  //   } else {
-  //     showMessage({ 
-  //       message: 'เกิดข้อผิดพลาดที่ไม่คาดคิด', 
-  //       type: 'danger' 
-  //     });
-  //   }
-  // } finally {
-  //   setIsSubmitting(false);
-  // }
+
+      await AsyncStorage.setItem('access_token', token);
+      await AsyncStorage.setItem('refresh_token', refresh_token);
+
+      router.push({
+        pathname: '/(tabs)/profile',
+        params: { name, email, photo }
+      });
+    } else {
+      Alert.alert('Sign in cancelled or failed');
+    }
+  } catch (error : any) {
+    console.error('Google Sign-In error:', error);
+    
+    if (isErrorWithCode(error)) {
+      switch (error.code) {
+        case statusCodes.SIGN_IN_CANCELLED:
+          console.log('User cancelled');
+          break;
+        case statusCodes.IN_PROGRESS:
+          Alert.alert('Sign in is in progress');
+          break;
+        case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+          Alert.alert('Play services not available');
+          break;
+        default:
+          Alert.alert('Error', error.message);
+      }
+    } else {
+     if (error.response) {
+             Alert.alert("Login Failed", `Server Error: ${error.response.status}`);
+        } else {
+             Alert.alert("Error", error.message || "Unknown error");
+      }
+    }
+  } finally {
+    setIsSubmitting(false);
+  }
 };
    const handleRegister = () => {
      router.push('/Register');

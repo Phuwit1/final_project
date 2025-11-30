@@ -23,18 +23,18 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    //   const configureGoogleSignin = async () => {
-    //   try {
-    //     GoogleSignin.configure({
-    //       webClientId: "1061030412176-tmtkq6rgmr4biqpr8ir1sk902od0mu1e.apps.googleusercontent.com",
-    //       offlineAccess: true,
-    //     });
-    //     console.log('Google Sign-In configured successfully');
-    //   } catch (error) {
-    //     console.error('Google Sign-In configuration error:', error);
-    //   }
-    // };
-    // configureGoogleSignin();
+      const configureGoogleSignin = async () => {
+      try {
+        GoogleSignin.configure({
+          webClientId: "1061030412176-tmtkq6rgmr4biqpr8ir1sk902od0mu1e.apps.googleusercontent.com",
+          offlineAccess: true,
+        });
+        console.log('Google Sign-In configured successfully');
+      } catch (error) {
+        console.error('Google Sign-In configuration error:', error);
+      }
+    };
+    configureGoogleSignin();
 
     if (loaded) {
       SplashScreen.hideAsync();
