@@ -45,6 +45,8 @@ import React, { useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { API_URL } from '@/api.js'
+
 
 interface LogoutButtonProps {
   onLogoutSuccess?: () => void;
@@ -60,7 +62,7 @@ export default function LogoutButton({ onLogoutSuccess }: LogoutButtonProps) {
       if (!token) throw new Error('No token found');
 
       // เรียก API logout backend
-      await axios.post('http://192.168.1.45:8000/logout', {}, {
+      await axios.post(`${API_URL}logout`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
