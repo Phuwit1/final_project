@@ -25,9 +25,13 @@ async def get_db():
         await db.disconnect()
 
 # Auth Functions
-def create_access_token(email: str, expires_minutes: int = 60):
-    expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
-    payload = {"sub": email, "exp": expire}
+# def create_access_token(email: str, expires_minutes: int = 60):
+#     expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
+#     payload = {"sub": email, "exp": expire}
+#     return jwt.encode(payload, os.getenv("SECRET_KEY_JWT"), algorithm=ALGORITHM)
+
+def create_access_token(email: str):
+    payload = {"sub": email}
     return jwt.encode(payload, os.getenv("SECRET_KEY_JWT"), algorithm=ALGORITHM)
 
 def create_refresh_token(email: str, expires_days: int = 7):
