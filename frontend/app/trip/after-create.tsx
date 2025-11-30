@@ -66,9 +66,10 @@ export default function AICreateTrip() {
   const [tripName, setTripName] = useState('');
   const [cities, setCities] = useState<City[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [triprequest, setTripRequest] = useState('');
 
   const [cityModalVisible, setCityModalVisible] = useState(false);
-  const [citySearch, setCitySearch] = useState('');
+  const [citySearch, setCitySearch] = useState(''); 
   const [loadingCities, setLoadingCities] = useState(false);
 
   // วันที่เริ่ม/จบ (ห้ามย้อนหลัง, end ≥ start)
@@ -189,7 +190,7 @@ const onCreateWithAI = async () => {
       start_date: toDDMMYYYY_fromDate(startDate),
       end_date: toDDMMYYYY_fromDate(endDate),
       cities : selectedCities,
-      text: selectedCities.join(', '),
+      text: triprequest,
     };
 
     console.log("LLM request body:", llmBody);
@@ -241,7 +242,7 @@ const onCreateWithAI = async () => {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: 'padding', android: undefined })}>
       <View style={styles.container}>
-        <Text style={styles.title}>✨ สร้างทริปใหม่ด้วย AI</Text>
+        <Text style={styles.title}>✨ สร้างทริปใหม่ ✨</Text>
         <Text style={styles.sub}>ใส่ข้อมูล แล้วให้ AI จัด Daily Trip ให้เลย</Text>
 
         <View style={styles.field}>
@@ -326,7 +327,10 @@ const onCreateWithAI = async () => {
           </View>
         </Modal>
 
-
+        <View style={styles.field}>
+          <Text style={styles.label}>ความต้องการ</Text>
+          <TextInput value={triprequest} onChangeText={setTripRequest} placeholder="เช่น อยากไปดูซากุระ" style={styles.input} />
+        </View>
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1 }]}>
