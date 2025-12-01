@@ -62,7 +62,7 @@ export default function LogoutButton({ onLogoutSuccess }: LogoutButtonProps) {
       if (!token) throw new Error('No token found');
 
       // เรียก API logout backend
-      await axios.post(`${API_URL}logout`, {}, {
+      await axios.post(`${API_URL}/logout`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
