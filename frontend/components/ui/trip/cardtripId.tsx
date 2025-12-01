@@ -9,6 +9,7 @@ import * as Linking from 'expo-linking';
 // import API function ของคุณ (สมมติว่าใช้ axios หรือ fetch)
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // สมมติว่าเก็บ token ไว้ที่นี่
+import { API_URL } from '@/api.js'
 
 interface TripCardProps {
   name: string;
@@ -42,7 +43,7 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
         console.log("👉 Sending Token:", token);
         // เปลี่ยน URL ตาม IP เครื่องคุณ
         const response = await axios.post(
-            `http://192.168.1.45:8000/trip_group/create_from_plan/${tripId}`, 
+            `${API_URL}/trip_group/create_from_plan/${tripId}`, 
             {}, 
             { headers: { Authorization: `Bearer ${token}` } }
         );
