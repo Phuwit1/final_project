@@ -56,28 +56,6 @@ type Props = {
   endDate: string;       // ISO
 };
 
-function extractHHmm(timeStr: string): string {
-  // พยายามดึงจากรูปแบบ ISO ก่อน ป้องกัน timezone shift
-  // เช่น "1970-01-01T09:00:00.000Z" -> 09:00
-  const m = /T(\d{2}):(\d{2})/.exec(timeStr);
-  if (m) return `${m[1]}:${m[2]}`;
-  // ถ้าดันมาเป็น "09:00:00" หรือ "09:00"
-  const m2 = /^(\d{1,2}):(\d{2})/.exec(timeStr);
-  if (m2) {
-    const hh = m2[1].padStart(2, '0');
-    return `${hh}:${m2[2]}`;
-  }
-  // fallback
-  const d = dayjs(timeStr);
-  return d.isValid() ? d.format('HH:mm') : '00:00';
-}
-
-function toYYYYMMDD(dateStr: string): string {
-  // จาก ISO db.Date -> "YYYY-MM-DD"
-  const d = dayjs(dateStr);
-  return d.isValid() ? d.format('YYYY-MM-DD') : dateStr.slice(0, 10);
-}
-
 function buildDayRange(startISO: string, endISO: string): string[] {
   const s = dayjs(startISO);
   const e = dayjs(endISO);

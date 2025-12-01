@@ -211,7 +211,7 @@ const onCreateWithAI = async () => {
         plan_id: planId,
         payload: data, 
       },
-      { headers, timeout: 45000 }
+      { headers } 
     );
 
     Alert.alert('สำเร็จ', `สร้างทริปและแผนรายวันด้วย AI แล้ว`, [
