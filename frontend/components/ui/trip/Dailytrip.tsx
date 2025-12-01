@@ -15,10 +15,11 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '@/api.js'
 
 dayjs.locale('th');
 
-const API_BASE = 'http://192.168.1.45:8000';
+const API_BASE = `${API_URL}`;
 
 // ===== ชนิดข้อมูลจาก API =====
 type DBScheduleRow = {

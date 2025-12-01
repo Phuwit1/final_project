@@ -36,6 +36,7 @@ async def refresh_token(data: TokenRefreshRequest, db: Prisma = Depends(get_db))
         where={"email": email},
         data={"currentToken": new_access, "refreshToken": new_refresh}
     )
+    print({"email": email, "token": new_access, "refresh_token": new_refresh})
     return {"email": email, "token": new_access, "refresh_token": new_refresh}
 
 @router.post("/register", response_model=CustomerOut)

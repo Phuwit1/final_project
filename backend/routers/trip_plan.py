@@ -50,7 +50,12 @@ async def read_trip_plan_by_id(plan_id: int, db: Prisma = Depends(get_db)):
             where={"plan_id": plan_id},
             include={
                 "schedules": True,
-                "budget": True 
+                "budget": True,
+                "tripGroup": {
+                    "include": {
+                        "members": True # ✅ สั่งให้ดึงสมาชิกมาด้วย
+                    }
+                },
             }
         )
         return trip_plan

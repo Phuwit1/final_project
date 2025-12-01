@@ -65,7 +65,7 @@ export default function Hometrip() {
     const [trip, setTrip] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [itineraryData, setItineraryData] = useState<any>(null)
-    const API_BASE = useMemo(() => 'http://192.168.1.45', []);
+    const API_BASE = useMemo(() => `${API_URL}`, []);
 
     
     const dailyRef = useRef<DailyPlanTabsHandle>(null);
@@ -87,6 +87,7 @@ export default function Hometrip() {
     
             
             setTrip(res.data);
+            console.log("sdsd");
           } catch (err) {
             console.error('Error fetching trip:', err);
           } finally {
@@ -134,7 +135,7 @@ export default function Hometrip() {
                             date={formatTripDateRange(trip.start_plan_date, trip.end_plan_date)}
                             duration={`${getDuration(trip.start_plan_date, trip.end_plan_date)} วัน`}
                             status={getStatus(trip.start_plan_date, trip.end_plan_date)}
-                            people={(trip.members?.length || 0) + 1}
+                            people={(trip.tripGroup?.members?.length || 1)}
                             tripId={trip.plan_id}
                             budget={trip.budget?.total_budget}
                             // image={require('@/assets/images/home/fuji-view.jpg')}

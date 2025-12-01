@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '@/api.js'
 
 const categories: { name: string; icon: React.ComponentProps<typeof FontAwesome>['name'] }[] = [
   { name: 'อาหาร', icon: 'cutlery' },
@@ -61,10 +62,10 @@ export default function TripBudgetScreen() {
         if (!token) return;
 
         const [tripRes, budgetRes] = await Promise.all([
-          axios.get(`http://192.168.1.45:8000/trip_plan/${trip_id}`, {
+          axios.get(`${API_URL}/trip_plan/${trip_id}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          axios.get(`http://192.168.1.45:8000/budget/plan/${trip_id}`, {
+          axios.get(`${API_URL}/budget/plan/${trip_id}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
@@ -182,7 +183,7 @@ const handleSave = async () => {
     if (isEditing && editingExpenseId) {
       // แก้ไข expense
       await axios.put(
-        `http://192.168.1.45:8000/expense/${editingExpenseId}`,
+        `${API_URL}/expense/${editingExpenseId}`,
         data,
         { headers: { Authorization: `Bearer ${token}` } }
       ); 
@@ -201,7 +202,7 @@ const handleSave = async () => {
     } else {
       // เพิ่ม expense ใหม่
       const response = await axios.post(
-        `http://192.168.1.45:8000/expense`,
+        `${API_URL}/expense`,
         data,
         { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -233,7 +234,7 @@ const handleSave = async () => {
       if (!token) return;
 
       await axios.put(
-        `http://192.168.1.45:8000/budget/${budgetId}`,
+        `${API_URL}/budget/${budgetId}`,
         { total_budget: parseInt(editBudgetAmount, 10),
           plan_id : trip_id
          },
