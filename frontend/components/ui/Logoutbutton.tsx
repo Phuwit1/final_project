@@ -45,8 +45,9 @@ import React, { useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { useRouter } from 'expo-router';
 import { API_URL } from '@/api.js'
-
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 interface LogoutButtonProps {
   onLogoutSuccess?: () => void;
@@ -54,10 +55,22 @@ interface LogoutButtonProps {
 
 export default function LogoutButton({ onLogoutSuccess }: LogoutButtonProps) {
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleLogout = async () => {
     setLoading(true);
     try {
+      try {
+        const currentUser = await GoogleSignin.getCurrentUser();
+        if (currentUser) {
+          await GoogleSignin.signOut();
+          console.log("Google Sign-Out Successful");
+        }
+      } catch (error) {
+        console.error("Google Sign-Out Error:", error);
+        // ไม่ throw error เพื่อให้ process อื่นทำงานต่อได้
+      }
+      
       const token = await AsyncStorage.getItem('access_token');
       if (!token) throw new Error('No token found');
 
