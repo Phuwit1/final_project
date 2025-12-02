@@ -87,7 +87,6 @@ export default function Hometrip() {
     
             
             setTrip(res.data);
-            console.log("sdsd");
           } catch (err) {
             console.error('Error fetching trip:', err);
           } finally {

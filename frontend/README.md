@@ -14,6 +14,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install axios
    npm install date-fns
    npx expo install expo-constants
+   npx expo install expo-location
 
    npm install @react-native-async-storage/async-storage
    npm i @react-native-google-signin/google-signin@latest
