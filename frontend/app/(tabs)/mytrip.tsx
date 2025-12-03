@@ -12,7 +12,7 @@
 // }
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import SakuraBackground from '@/components/ui/sakurabackground';
 import TripCard from '@/components/ui/trip/cardtrip';
@@ -24,6 +24,7 @@ import 'dayjs/locale/th';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { API_URL } from '@/api.js'
+import { Ionicons } from '@expo/vector-icons';
 
 
 type Trip = {
@@ -70,6 +71,7 @@ export default function TripListScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
 
   useFocusEffect(
   useCallback(() => {
@@ -107,10 +109,34 @@ export default function TripListScreen() {
     fetchTrips();
 
     // Optional: clean up if needed
-    return () => {};
+    return () => {setIsDeleteMode(false);};
   }, []) // dependency array
 );
-
+  const handleDelete = async (planId: number) => {
+    Alert.alert(
+      "ยืนยันการลบ",
+      "คุณต้องการลบทริปนี้ใช่หรือไม่?",
+      [
+        { text: "ยกเลิก", style: "cancel" },
+        {
+          text: "ลบ",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('access_token');
+              await axios.delete(`${API_URL}/trip_plan/${planId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              // ลบออกจาก State ทันทีเพื่อให้ UI อัปเดต
+              setTrips(prev => prev.filter(t => t.plan_id !== planId));
+            } catch (error) {
+              Alert.alert("Error", "ไม่สามารถลบทริปได้");
+            }
+          }
+        }
+      ]
+    );
+  };
 
 
   const filteredTrips = Array.isArray(trips)
@@ -130,15 +156,31 @@ export default function TripListScreen() {
     const memberCount = item.tripGroup?.members?.length || 1;
 
     return (
-      <TouchableOpacity onPress={() => router.push(`/trip/${item.plan_id}`)}>
-        <TripCard
-          name={item.name_group}
-          date={formattedDate}
-          duration={`${durationDays} วัน`}
-          status={getStatus(item.start_plan_date, item.end_plan_date)}
-          people={memberCount}
-        />
-      </TouchableOpacity>
+      <View style={styles.cardContainer}>
+        <TouchableOpacity 
+          onPress={() => router.push(`/trip/${item.plan_id}`)}
+          disabled={isDeleteMode} // ปิดการกดเข้าทริปถ้าอยู่ในโหมดลบ
+          activeOpacity={isDeleteMode ? 1 : 0.7}
+        >
+          <TripCard
+            name={item.name_group}
+            date={formattedDate}
+            duration={`${durationDays} วัน`}
+            status={getStatus(item.start_plan_date, item.end_plan_date)}
+            people={memberCount}
+          />
+        </TouchableOpacity>
+
+        {/* ✅ 4. แสดงปุ่มกากบาทเมื่ออยู่ในโหมดลบ */}
+        {isDeleteMode && (
+          <TouchableOpacity 
+            style={styles.deleteBadge} 
+            onPress={() => handleDelete(item.plan_id)}
+          >
+            <Ionicons name="close-circle" size={28} color="#FF3B30" />
+          </TouchableOpacity>
+        )}
+      </View>
     );
   };
 
@@ -147,13 +189,27 @@ export default function TripListScreen() {
       <TopBar/>
       <View style={styles.container}>
         <SakuraBackground />
-        <TextInput
-          style={styles.searchBar}
-          placeholder="ค้นหาทริป..."
-          value={search}
-          onChangeText={setSearch}
-        />
-
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchBar}
+            placeholder="ค้นหาทริป..."
+            value={search}
+            onChangeText={setSearch}
+          />
+          <View style={styles.actionButtons}>
+            {/* ✅ 5. ปุ่ม Toggle โหมดลบ (ถังขยะ) */}
+            <TouchableOpacity 
+              style={[styles.deleteToggleButton, isDeleteMode && styles.deleteActive]}
+              onPress={() => setIsDeleteMode(!isDeleteMode)}
+            >
+              <Ionicons 
+                name={isDeleteMode ? "close" : "trash-outline"} 
+                size={20} 
+                color={isDeleteMode ? "white" : "#FF3B30"} 
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
         {loading ? (
           <ActivityIndicator />
         ) : error ? (
@@ -177,13 +233,66 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#fff',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center', 
+    marginBottom: 16,
+    gap: 10, 
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 15,
+  },
+  searchButton: {
+    padding: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteToggleButton: {
+    backgroundColor: '#FFF0F0',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFD6D6',
+  },
+  deleteActive: {
+    backgroundColor: '#FF3B30',
+    borderColor: '#FF3B30',
+  },
+  cardContainer: {
+    position: 'relative',
+    marginBottom: 8,
+    marginTop: 5, 
+    marginRight: 10, 
+    marginLeft: 4,
+    overflow: 'visible',
+  },
+  
+  deleteBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: 'white',
+    borderRadius: 15,
+    zIndex: 10,
+    elevation: 5,
+  },
   searchBar: {
+    flex: 1,
     borderColor: '#ccc',
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginBottom: 16,
+    height: 40,
   },
   tripCard: {
     backgroundColor: '#f4f4f4',
