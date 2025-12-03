@@ -1,9 +1,9 @@
 // app/trip/detail.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   View, Text, TextInput, ScrollView, TouchableOpacity, 
   Alert, ActivityIndicator, StyleSheet, 
-  Modal, Image, SafeAreaView
+  Modal, Image, SafeAreaView, FlatList
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,17 +11,26 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '@/api.js'
 
+type City = {
+  id: number;
+  name: string;
+};
+
 export default function TripDetail() {
   const { planId, cities: citiesParam } = useLocalSearchParams(); // รับจาก router
   const router = useRouter();
 
-  // const [payload, setPayload] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+
   const [schedule, setSchedule] = useState<any>(null);
-  const [edited, setEdited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editedSchedule, setEditedSchedule] = useState<any>(null);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+
+  const [allCities, setAllCities] = useState<City[]>([]);
+  const [currentSelectedCities, setCurrentSelectedCities] = useState<string[]>([]);
+  const [citySearch, setCitySearch] = useState('');
+  
 
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [newNote, setNewNote] = useState("");
@@ -40,6 +49,17 @@ export default function TripDetail() {
 
         setSchedule(payload);
         setEditedSchedule(JSON.parse(JSON.stringify(payload)));
+
+        const citiesRes = await axios.get(`${API_URL}/cities`);
+        if (citiesRes.data && Array.isArray(citiesRes.data.items)) {
+          setAllCities(citiesRes.data.items);
+        }
+
+        if (citiesParam) {
+          const parsedCities = JSON.parse(citiesParam as string);
+          setCurrentSelectedCities(parsedCities);
+        }
+        
       } catch (e) {
         console.error("โหลดแผนไม่สำเร็จ:", e);
         Alert.alert("โหลดแผนไม่สำเร็จ");
@@ -50,7 +70,23 @@ export default function TripDetail() {
     fetchPlan();
   }, [planId]);
 
-    const updateActivity = (dayIdx: number, actIdx: number, field: string, value: string) => {
+  const toggleCity = (cityName: string) => {
+    setCurrentSelectedCities((prev) => {
+      if (prev.includes(cityName)) {
+        return prev.filter((c) => c !== cityName);
+      } else {
+        return [...prev, cityName];
+      }
+    });
+  };
+
+  const filteredCities = useMemo(() => {
+    return allCities.filter((c) =>
+      c.name.toLowerCase().includes(citySearch.toLowerCase())
+    );
+  }, [allCities, citySearch]);
+
+  const updateActivity = (dayIdx: number, actIdx: number, field: string, value: string) => {
     setEditedSchedule((prev: any) => {
       const copy = { ...prev };
       copy.itinerary[dayIdx].schedule[actIdx][field] = value;
@@ -59,16 +95,24 @@ export default function TripDetail() {
   };
 
   const confirmPlan = async () => {
-
     const changed = JSON.stringify(schedule) !== JSON.stringify(editedSchedule);
-
-     if (!changed) {
+    if (!changed) {
         Alert.alert("ไม่มีการแก้ไข", "แผนถูกยืนยันเรียบร้อยแล้ว ✅");
         router.replace({ pathname: "/(tabs)/mytrip" });
         return;
-      }
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (currentSelectedCities.length === 0) {
+      Alert.alert("แจ้งเตือน", "กรุณาเลือกเมืองอย่างน้อย 1 เมือง");
+      return;
+    }
+
+    setAddModalVisible(false); // ปิด Modal
+    setSaving(true); // เปิด Loading
+
     try {
-      setSaving(true);
       const token = await AsyncStorage.getItem('access_token');
       const headers: any = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
@@ -80,45 +124,42 @@ export default function TripDetail() {
 
       const startDate = schedule.itinerary[0]?.date ?? "";
       const endDate = schedule.itinerary[schedule.itinerary.length - 1]?.date ?? "";
-      // 1) ส่งไปให้ LLM revise
+
+      // เรียก AI แบบ Re-plan (เปลี่ยนเมือง / เปลี่ยนความต้องการ)
+      // เราใช้ text ที่ผู้ใช้กรอกใหม่ + เมืองใหม่
       const res = await axios.post(`${API_URL}/llm/fix/`, 
         { 
-        start_date: toDDMMYYYY(startDate),
-        end_date: toDDMMYYYY(endDate),
-        cities: selectedCities, 
-        text: "This is the user's finalized itinerary. Please strictly PRESERVE all activities, times, and order exactly as provided. Do not change the schedule. Only polish the descriptions and fill in missing specific_location_name or lat/lng coordinates if they are null.", // ✅ อธิบายเหตุผลสั้นๆ
-        itinerary_data: editedSchedule
+          start_date: toDDMMYYYY(startDate),
+          end_date: toDDMMYYYY(endDate),
+          cities: currentSelectedCities, 
+          // ส่ง prompt บอก AI ว่าเป็นการ Re-plan ตามความต้องการใหม่
+          text: `${newNote}`,
+          itinerary_data: editedSchedule
         }, 
-        { headers });
+        { headers }
+      );
+      
       const revised = res.data;
 
-    
-
-      // 2) PUT กลับไปแก้ใน DB
+      // บันทึกผลลัพธ์ใหม่ลง DB
       await axios.put(`${API_URL}/trip_schedule/${planId}`, 
-        { 
-          plan_id: planId,
-          payload: revised 
-        }, 
-        { headers });
+        { plan_id: planId, payload: revised }, 
+        { headers }
+      );
 
-      Alert.alert("สำเร็จ", "บันทึกแผนที่แก้ไขแล้ว");
-      router.replace({ pathname: "/(tabs)/mytrip" });
+      setSchedule(revised);
+      setEditedSchedule(revised);
+      setNewNote(""); // ล้างข้อความ
+      Alert.alert("สำเร็จ", "AI สร้างแผนใหม่ให้คุณเรียบร้อยแล้ว ✨");
+
     } catch (e) {
-      console.error("บันทึกไม่สำเร็จ:", e);
-      
-      Alert.alert("บันทึกไม่สำเร็จ");
+      console.error("แก้ไขแผนใหม่ไม่สำเร็จ:", e);
+      Alert.alert("Error", "ไม่สามารถสร้างแผนใหม่ได้");
     } finally {
       setSaving(false);
     }
   };
-  const handleAddNote = () => {
-    // Logic สำหรับปุ่มเพิ่ม (หน้าสุด)
-    console.log("Adding note:", newNote);
-    Alert.alert("บันทึก", `เพิ่มข้อมูล: ${newNote} เรียบร้อย (ตัวอย่าง)`);
-    setAddModalVisible(false);
-    setNewNote("");
-  };
+
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} />;
 
@@ -139,8 +180,7 @@ export default function TripDetail() {
             style={styles.addButton} 
             onPress={() => setAddModalVisible(true)}
           >
-            <Ionicons name="add" size={24} color="white" />
-            <Text style={styles.addButtonText}>เพิ่ม</Text>
+            <Text style={styles.addButtonText}>แก้ไขใหม่</Text>
           </TouchableOpacity>
 
           {/* รายการวัน */}
@@ -218,12 +258,41 @@ export default function TripDetail() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>เพิ่มรายละเอียด</Text>
-            <Text style={styles.modalSubtitle}>กรอกข้อมูลที่ต้องการเพิ่มในทริป</Text>
-            
+            <Text style={styles.modalTitle}>แก้ไขแผนการเดินทางใหม่</Text>
+            <Text style={styles.modalSubtitle}>กรอกความต้องการสถานที่ ที่ท่านอยากไป</Text>
+
+            <Text style={styles.label}>เลือกเมืองที่ต้องการไป</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="ค้นหาเมือง..."
+              value={citySearch}
+              onChangeText={setCitySearch}
+            />
+            <View style={styles.cityListContainer}>
+              <FlatList
+                data={filteredCities}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => {
+                  const isChecked = currentSelectedCities.includes(item.name);
+                  return (
+                    <TouchableOpacity 
+                      style={styles.cityRow} 
+                      onPress={() => toggleCity(item.name)}
+                    >
+                      <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
+                        {isChecked && <Ionicons name="checkmark" size={14} color="white" />}
+                      </View>
+                      <Text style={styles.cityText}>{item.name}</Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </View>
+
+            <Text style={[styles.label, { marginTop: 10 }]}>ความต้องการเพิ่มเติม</Text>
             <TextInput 
               style={styles.modalInput}
-              placeholder="เช่น จองตั๋วรถไฟ, นัดเจอไกด์..."
+              placeholder="เช่น อยากเน้นกิน, อยากไปวัด, ไม่รีบ..."
               value={newNote}
               onChangeText={setNewNote}
               multiline
@@ -239,9 +308,9 @@ export default function TripDetail() {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.modalBtn, styles.saveBtn]} 
-                onPress={handleAddNote}
+                onPress={handleRegenerate}
               >
-                <Text style={[styles.modalBtnText, { color: 'white' }]}>เพิ่ม</Text>
+                <Text style={[styles.modalBtnText, { color: 'white' }]}>แก้ไข</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -249,16 +318,11 @@ export default function TripDetail() {
       </Modal>
 
       {/* --- 5. Loading Modal (ระหว่างรอ Save) --- */}
-      <Modal
-        transparent={true}
-        animationType="fade"
-        visible={saving}
-        onRequestClose={() => {}}
-      >
+      <Modal transparent={true} animationType="fade" visible={saving} onRequestClose={()=>{}}>
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color="#FFA500" />
-            <Text style={styles.loadingText}>กำลังบันทึกและปรับปรุงแผน...</Text>
+            <Text style={styles.loadingText}>กำลังปรับปรุงแผน...</Text>
           </View>
         </View>
       </Modal>
@@ -283,7 +347,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addButton: {
-    width: 60,
+    width: 100,
     height: 60,
     backgroundColor: '#FF6B6B',
     borderRadius: 12,
@@ -298,7 +362,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: 'white',
-    fontSize: 10,
+    fontSize: 16,
     fontWeight: 'bold',
     marginTop: 2,
   },
@@ -313,8 +377,7 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   selectedDayChip: {
-    backgroundColor: '#FFA500',
-    borderColor: '#FFA500',
+    backgroundColor: '#f3606cff',
     transform: [{ scale: 1.05 }],
   },
   dayText: {
@@ -418,6 +481,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -473,5 +542,13 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontWeight: '600',
     color: '#333',
-  }
+  },
+
+  searchInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, marginBottom: 10, backgroundColor: '#f9f9f9' },
+  cityListContainer: { height: 200, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 10 },
+  cityRow: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: '#ccc', marginRight: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' },
+  checkboxChecked: { backgroundColor: '#FFA500', borderColor: '#FFA500' },
+  cityText: { fontSize: 16, color: '#333' },
+
 });

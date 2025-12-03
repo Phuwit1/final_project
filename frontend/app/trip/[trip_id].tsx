@@ -148,7 +148,7 @@ export default function Hometrip() {
                 }  
                 
               >
-                 <DailyPlanTabs
+              <DailyPlanTabs
                     startDate={trip.start_plan_date}
                     endDate={trip.end_plan_date}
                     planId={trip.plan_id}                 // << ส่งแผนที่ใช้งานจริงเข้าไปตรงๆ
