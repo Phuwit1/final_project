@@ -10,14 +10,22 @@
     "newArchEnabled": true,
     "jsEngine": "hermes",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourname.appname",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "แอปพลิเคชันต้องการเข้าถึงตำแหน่งของคุณเพื่อระบุพิกัดในการใช้งาน (ใส่เหตุผลที่ฟังขึ้นเพื่อให้ Apple อนุมัติ)"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.japanplanner"
+      "package": "com.anonymous.japanplanner",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -42,6 +50,15 @@
           "android": {
             "kotlinVersion": "1.9.25"
           }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow TabiGo to use your location.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ],
