@@ -3,7 +3,7 @@ import {View, Text, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import TripCardID from '@/components/ui/trip/cardtripId';
 import DailyPlanTabs from '@/components/ui/trip/Dailytrip';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, Stack } from 'expo-router';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import FloatingChat from '@/components/ui/trip/chat/Floatingchat';
 import { DailyPlanTabsHandle } from '@/components/ui/trip/Dailytrip';
@@ -84,8 +84,6 @@ export default function Hometrip() {
               headers: { Authorization: `Bearer ${token}` },
             });
 
-    
-            
             setTrip(res.data);
           } catch (err) {
             console.error('Error fetching trip:', err);
@@ -116,6 +114,7 @@ export default function Hometrip() {
 
     return (
         <View style={styles.screen} pointerEvents="box-none">
+            
             <ParallaxScrollView
                 headerHeight={350}
                 headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -135,7 +134,8 @@ export default function Hometrip() {
                             duration={`${getDuration(trip.start_plan_date, trip.end_plan_date)} วัน`}
                             status={getStatus(trip.start_plan_date, trip.end_plan_date)}
                             people={(trip.tripGroup?.members?.length || 1)}
-                            tripId={trip.plan_id}
+                            planId={trip.plan_id}
+                            tripId={trip.trip_id}
                             budget={trip.budget?.total_budget}
                             // image={require('@/assets/images/home/fuji-view.jpg')}
                             />

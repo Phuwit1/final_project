@@ -53,6 +53,7 @@ export default function Home(){
                 <Text style={styles.welcomeText}>Welcome, {user?.first_name || "ไม่มี"} {user?.last_name || "ไม่มี"} </Text>
                 
                 <CurrentCard />
+                
               </View>
           </View>
           

@@ -10,11 +10,24 @@ import 'react-native-reanimated';
 import './globals.css';
 import { GestureHandlerRootView } from 'react-native-gesture-handler'; 
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-
+import { Image, View, Text } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+const CustomHeaderTitle = () => (
+  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <Image 
+      source={require('../assets/images/icon.png')} 
+      style={{ width: 30, height: 30, borderRadius: 15, marginRight: 3 }} 
+      resizeMode="contain"
+    />
+    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#f03f3fff' }}>
+      TabiGo
+    </Text>
+  </View>
+);
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -53,6 +66,15 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(modals)" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
+
+          <Stack.Screen name="trip/[trip_id]" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+          <Stack.Screen name="trip/[trip_id]/budget" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+          <Stack.Screen name="trip/[trip_id]/editschedule" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+          <Stack.Screen name="trip/after-create" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+          <Stack.Screen name="trip/[trip_id]/member" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+          <Stack.Screen name="trip/scheduledetail" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+
+
           {/* <Stack.Screen name="Login" />
           <Stack.Screen name="Register" /> */}
         </Stack>

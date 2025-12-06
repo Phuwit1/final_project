@@ -10,12 +10,15 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+
 } from 'react-native';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/api.js'
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 dayjs.locale('th');
 
@@ -68,6 +71,7 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
   { planId, startDate, endDate },
   ref
 ) {
+  const router = useRouter();
   const [selectedDay, setSelectedDay] = useState(1);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState<DailyData[]>([]);
@@ -170,6 +174,17 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
 
   const current = days.find(d => d.day === selectedDay);
 
+  const handleEdit = () => {
+    if (planId) {
+      router.push({
+        pathname: '/trip/[trip_id]/editschedule',
+        params: { trip_id: String(planId), dayIndex: String(selectedDay - 1) },
+      });
+    } else {
+      console.warn('ไม่พบ planId สำหรับการแก้ไข');
+    }
+  };
+
   return (
     <View>
       {/* ปุ่ม Day 1..N */}
@@ -195,10 +210,17 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
           {loading ? <ActivityIndicator /> : <Text style={{ fontWeight: '600' }}>รีเฟรช</Text>}
         </TouchableOpacity>
       </ScrollView>
-
-      {/* รายการของวัน */}
+      
       <View style={styles.planContainer}>
-        <Text style={styles.planTitle}> {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')}</Text>
+
+        <View style={styles.headerRow}>
+          <Text style={styles.planTitle}> {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')}</Text>
+          <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
+                  <Ionicons name="create-outline" size={18} color="#007AFF" />
+                  <Text style={styles.editButtonText}>แก้ไขกิจกรรม</Text>
+          </TouchableOpacity>
+        </View>
+
 
         {loading && (!current || current.items.length === 0) ? (
           <ActivityIndicator style={{ marginVertical: 12 }} />
@@ -217,10 +239,6 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
           <Text style={{ color: '#555' }}>ยังไม่มีรายการ</Text>
         )}
 
-        {/* ปุ่มเพิ่ม */}
-        <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
-          <Text style={styles.addBtnText}>+ เพิ่มกิจกรรม</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Modal เพิ่มกิจกรรม */}
@@ -300,7 +318,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     backgroundColor: '#F0F8FF',
-    marginHorizontal: 12,
     marginBottom: 16,
   },
   planTitle: {
@@ -364,5 +381,24 @@ const styles = StyleSheet.create({
   },
   btnPrimary: {
     backgroundColor: '#2563eb',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F8FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  editButtonText: {
+    color: '#007AFF',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

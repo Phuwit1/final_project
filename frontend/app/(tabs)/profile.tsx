@@ -1,85 +1,3 @@
-// ProfileScreen.tsx
-// import React, { useEffect, useState } from 'react';
-// import { View, Text, ActivityIndicator, Alert, Button  } from 'react-native';
-// import axios from 'axios';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
-// import LogoutButton from '@/components/ui/Logoutbutton';
-// import { useNavigation } from '@react-navigation/native';
-
-// type User = {
-//   first_name: string;
-//   last_name: string;
-//   email: string;
-// };
-// const ProfileScreen = () => {
-//   const [user, setUser] = useState<User | null>(null);
-//   const navigation = useNavigation<any>();
-
-
-//   const fetchProfile = async () => {
-//     try {
-//       const token = await AsyncStorage.getItem('access_token');
-//       if (!token) {
-//         console.log('❌ No token found in storage');
-//         Alert.alert('Unauthorized', 'Please log in again');
-//       return;
-// }
-
-//       const res = await axios.get('http://192.168.1.45:8000/user',{
-//         headers: {
-//           Authorization: `Bearer ${token}`,
-//         },
-//       });
-
-//       setUser(res.data);
-//     } catch (err : any) {
-//       console.log('Fetch user error:', err.response?.data || err.message);
-//       Alert.alert('Error', 'Unable to fetch profile');
-//     }
-//   };
-
-//   const handleLogoutSuccess = () => {
-//     navigation.navigate('Login'); // ไปหน้า Login หลัง logout สำเร็จ
-//   };
-
-//   useEffect(() => {
-//     fetchProfile();
-//   }, []);
-
-//     if (!user) {
-//         return (
-//             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-//             <ActivityIndicator size="large" color="#0000ff" />
-//             <Text>Loading profile...</Text>
-//             <View style={{ marginTop: 20 }}>
-//             <Button
-//                 title="Go to Login"
-//                 onPress={() => navigation.navigate('Login')}
-//             />
-//             </View>
-//         </View>
-//         );
-//     }
-
-//   return (
-//      <View style={{ padding: 20 }}>
-//       <Text style={{ fontSize: 18, marginBottom: 10 }}>👤 Profile</Text>
-//       <Text>First Name: {user.first_name}</Text>
-//       <Text>Last Name: {user.last_name}</Text>
-//       <Text>Email: {user.email}</Text>
-
-//       <View style={{ marginTop: 30 }}>
-//         <LogoutButton onLogoutSuccess={handleLogoutSuccess} />
-//       </View>
-//     </View>
-
-
-//   );
-// };
-
-// export default ProfileScreen;
-
-
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, ScrollView,
@@ -95,7 +13,9 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { API_URL } from '@/api.js'
-
+import FinishedTripCard from '@/components/ui/profile/FinishedTripCard';
+import { Ionicons } from '@expo/vector-icons';
+import dayjs from 'dayjs';
 
 export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
@@ -124,9 +44,21 @@ export default function ProfileScreen() {
         Pragma: 'no-cache',
       },
     });
+    const userData = res.data;
+
+    const tripsRes = await axios.get(`${API_URL}/trip_plan`, {
+          headers: { Authorization: `Bearer ${token}` }
+      });
+
+    const fullUserData = {
+          ...userData,
+          ownedTrips: tripsRes.data // เอาทริปมาใส่ใน user object
+      };
+
 
     console.log("User response:", res.data);
-    setUser(res.data);
+    setUser(fullUserData);
+    setTempInfo(fullUserData);
   } catch (err : any) {
     console.log('Fetch user error:', err.response?.data || err.message);
     if (err.response?.status === 401) {
@@ -143,15 +75,16 @@ export default function ProfileScreen() {
     }, [])
   );
 
-  useEffect(() => {
-    if (user) {
-      setTempInfo(user);
-    }
-  }, [user]);
-
   const handleLogoutSuccess = () => {
     router.push('/Login') // ไปหน้า Login หลัง logout สำเร็จ
   };
+
+  const getTripStatus = (end: string) => {
+    const now = dayjs();
+    const endDate = dayjs(end);
+    return now.isAfter(endDate, 'day') ? 'Ended' : 'Active';
+  };
+
   const handleSave = () => {
     setUser(tempInfo);
     setIsEditing(false);
@@ -163,49 +96,14 @@ export default function ProfileScreen() {
     setIsEditing(false);
   };
 
-  const completedTrips = [
-    {
-      id: 1,
-      title: 'โตเกียว-โอซาก้า 7 วัน',
-      date: 'มีนาคม 2024',
-      duration: '7 วัน 6 คืน',
-      image: '🏯',
-      rating: 4.8,
-      totalCost: '฿45,000',
-      highlights: ['Shibuya Crossing', 'Mount Fuji', 'Osaka Castle', 'Dotonbori'],
-      description: 'ทริปสุดประทับใจ ได้เห็นภูเขาฟูจิและลิงสกี มากินอาหารอร่อยๆ เยอะมาก'
-    },
-    {
-      id: 2,
-      title: 'เกียวโต ฤดูใบไม้ผลิ',
-      date: 'เมษายน 2024',
-      duration: '5 วัน 4 คืน',
-      image: '🌸',
-      rating: 5.0,
-      totalCost: '฿38,000',
-      highlights: ['Fushimi Inari', 'Bamboo Forest', 'Kinkaku-ji', 'Gion District'],
-      description: 'ช่วงซากุระบาน สวยมากๆ ถ่ายรูปได้สวยทุกมุม วัดทองคำสวยจนต้องไปหลายรอบ'
-    }
-  ];
+  if (!user) {
+    return (
+      <View style={styles.container}><Text>กรุณาเข้าสู่ระบบ</Text></View>
+    );
+  }
 
-  const TripCard = ({ trip }: any) => (
-    <View style={styles.tripCard}>
-      <Text style={styles.tripImage}>{trip.image}</Text>
-      <View style={styles.tripInfo}>
-        <Text style={styles.tripTitle}>{trip.title}</Text>
-        <Text style={styles.tripSubtitle}>{trip.date} • {trip.duration}</Text>
-        <Text style={styles.tripDetails}>⭐ {trip.rating}   💵 {trip.totalCost}</Text>
-        <Text style={styles.tripDescription}>{trip.description}</Text>
-        <View style={styles.highlights}>
-          {trip.highlights.map((h : any, idx : any) => (
-            <Text key={idx} style={styles.highlightTag}>{h}</Text>
-          ))}
-        </View>
-      </View>
-    </View>
-  );
+ 
 
-  
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -280,10 +178,45 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <TouchableOpacity style={styles.tripToggle} onPress={() => setShowTrips(!showTrips)}>
-        <Text style={styles.sectionTitle}>ทริปที่เสร็จสิ้นแล้ว ({completedTrips.length}) {showTrips ? '⬆️' : '⬇️'}</Text>
-      </TouchableOpacity>
-      {showTrips && completedTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
+      <View style={styles.tripSection}>
+        <TouchableOpacity 
+          style={styles.tripHeader} 
+          onPress={() => setShowTrips(!showTrips)}
+        >
+          <Text style={styles.tripHeaderText}>ประวัติการเดินทาง</Text>
+          <Ionicons name={showTrips ? "chevron-up" : "chevron-down"} size={20} color="#666" />
+        </TouchableOpacity>
+        
+        {showTrips && (
+          <View style={styles.tripList}>
+            {user.ownedTrips && user.ownedTrips.length > 0 ? (
+              user.ownedTrips.map((trip: any) => {
+                const startDate = new Date(trip.start_plan_date);
+                const endDate = new Date(trip.end_plan_date);
+                const isFinished = new Date() > endDate; // เช็คว่าทริปจบหรือยัง
+                const formattedDate = `${format(startDate, 'd MMM', { locale: th })} - ${format(endDate, 'd MMM yyyy', { locale: th })}`;
+              
+                return (
+                  <TouchableOpacity 
+                    key={trip.trip_id || trip.plan_id}
+                    onPress={() => router.push(`/trip/${trip.plan_id}`)}
+                  >
+                    <FinishedTripCard
+                        name={trip.name_group}
+                        date={formattedDate}
+                        budget={trip.budget?.total_budget || 0}
+                        people={trip.members?.length ? trip.members.length + 1 : 1}
+                        city="Tokyo, Kyoto" // ถ้ามีข้อมูลเมืองในอนาคตก็ใส่ตรงนี้
+                    />
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <Text style={styles.noTripText}>ยังไม่มีประวัติการเดินทาง</Text>
+            )}
+          </View>
+        )}
+      </View>
 
       {user ? (
           <LogoutButton onLogoutSuccess={handleLogoutSuccess} />
@@ -470,5 +403,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginRight: 4,
     marginBottom: 4
-  }
+  },
+  tripSection: { 
+    marginTop: 10, paddingHorizontal: 20, paddingTop: 20, 
+    borderTopWidth: 8, borderTopColor: '#f5f5f5' 
+  },
+  tripHeader: { 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
+    paddingVertical: 10, marginBottom: 10 
+  },
+  tripHeaderText: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  tripList: { gap: 10 },
+  noTripText: { color: '#999', textAlign: 'center', marginVertical: 20 },
 });

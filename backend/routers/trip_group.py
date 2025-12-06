@@ -46,12 +46,28 @@ async def read_trip_group_by_id(trip_id: int, db: Prisma = Depends(get_db), curr
     try:
         trip_group = await db.tripgroup.find_unique(
             where={"trip_id": trip_id},
-            include={"owner": True, "members": True, "tripSchedules": True, "budget": True}
+            include={
+                "owner": True,
+                "members": {
+                    "include": {
+                        "customer": True 
+                    }
+                },
+                "budget": True,
+                "tripPlan": {
+                    "include": {
+                        "schedules": True 
+                    }
+                }
+            }
         )
+       
         if not trip_group:
             return {"error": "Trip not found"}
-        if trip_group.owner_id != current_user.customer_id:
-            return {"error": "Unauthorized"}
+        is_member = any(m.customer_id == current_user.customer_id for m in trip_group.members)
+        
+        if trip_group.owner_id != current_user.customer_id and not is_member:
+             raise HTTPException(status_code=403, detail="Unauthorized")
         return trip_group
     except Exception as e:
         return {"error": str(e)}
@@ -250,3 +266,63 @@ async def create_group_member(group_member: GroupMember, db: Prisma = Depends(ge
 @router.delete("/group_member/{group_member_id}")
 async def delete_group_member(group_member_id: int, db: Prisma = Depends(get_db)):
     return await db.groupmember.delete(where={"group_member_id": group_member_id})
+
+
+@router.delete("/trip_group/{trip_id}/leave")
+async def leave_trip_group(trip_id: int, db: Prisma = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        # ลบสมาชิกออกจากกลุ่ม
+        await db.groupmember.delete_many(
+            where={
+                "trip_id": trip_id,
+                "customer_id": current_user.customer_id
+            }
+        )
+        return {"message": "Left the trip group successfully"}
+    
+    except Exception as e:
+        return {"error": str(e)}
+    
+
+    # ✅ อันนี้เพิ่มใหม่! เอาไว้ให้ Owner กด "ลบสมาชิก" (Kick)
+@router.delete("/trip_group/{trip_id}/members/{group_member_id}") # ✅ เปลี่ยนชื่อตัวแปรให้ชัดเจน
+async def remove_member(
+    trip_id: int, 
+    group_member_id: int, # ✅ รับเป็น group_member_id (PK)
+    db: Prisma = Depends(get_db), 
+    current_user = Depends(get_current_user)
+):
+    try:
+        # 1. ตรวจสอบสิทธิ์ Owner
+        trip = await db.tripgroup.find_unique(where={"trip_id": trip_id})
+        if not trip:
+            raise HTTPException(status_code=404, detail="Trip not found")
+
+        if trip.owner_id != current_user.customer_id:
+            raise HTTPException(status_code=403, detail="Only the owner can remove members")
+
+        # 2. ตรวจสอบว่าสมาชิกคนนี้อยู่ในทริปนี้จริงหรือไม่ (และหาตัวตนก่อนลบ)
+        target_member = await db.groupmember.find_unique(
+            where={"group_member_id": group_member_id}
+        )
+
+        if not target_member or target_member.trip_id != trip_id:
+            raise HTTPException(status_code=404, detail="Member not found in this group")
+
+        # 3. ป้องกัน Owner ลบตัวเอง (เช็คจาก customer_id ของเป้าหมาย)
+        if target_member.customer_id == current_user.customer_id:
+             raise HTTPException(status_code=400, detail="Cannot remove yourself via this endpoint")
+
+        # 4. ทำการลบ (ใช้ delete ธรรมดาเพราะลบจาก ID โดยตรง)
+        await db.groupmember.delete(
+            where={"group_member_id": group_member_id}
+        )
+        
+        return {"message": "Member removed successfully"}
+
+    except Exception as e:
+        print(f"Error removing member: {e}")
+        # ถ้า error เป็น HTTPException ให้ raise ต่อไปเลย
+        if isinstance(e, HTTPException):
+            raise e
+        return JSONResponse(status_code=500, content={"error": str(e)})
