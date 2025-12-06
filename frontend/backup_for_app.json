@@ -25,7 +25,12 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBwPHUl9H62_2lD7wMueT-HrqCrQvEBdJU"
+        }
+      }
     },
     "web": {
       "bundler": "metro",

@@ -15,6 +15,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install date-fns
    npx expo install expo-constants
    npx expo install expo-location
+   npx expo install react-native-maps
 
    npm install @react-native-async-storage/async-storage
    npm i @react-native-google-signin/google-signin@latest
@@ -31,6 +32,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    https://docs.expo.dev/develop/development-builds/create-a-build/
 
    npx expo start
+   npx expo start --dev-client //for local build
    ```
 
 In the output, you'll find options to open the app in a

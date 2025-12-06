@@ -41,3 +41,5 @@ yarn-error.*
 app-example
 
 .idea/
+
+.env*
