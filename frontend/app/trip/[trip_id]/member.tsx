@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, Alert, Image, SafeAreaView 
+  ActivityIndicator, Alert, Image, SafeAreaView, RefreshControl
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,6 +9,7 @@ import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '@/api.js'; 
 import * as Clipboard from 'expo-clipboard';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function MemberScreen() {
   const { trip_id } = useLocalSearchParams(); // รับ planId มาจาก router
@@ -18,14 +19,22 @@ export default function MemberScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [tripGroup, setTripGroup] = useState<any>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [trip_id]);
 
-  const fetchData = async () => {
+  useFocusEffect(
+      useCallback(() => {
+        fetchData();
+      }, [trip_id])
+    );
+
+  
+  const fetchData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+
+      if (!isRefresh) {
+        setLoading(true);
+      }
       const token = await AsyncStorage.getItem('access_token');
       if (!token) return;
 
@@ -57,7 +66,13 @@ export default function MemberScreen() {
       Alert.alert("Error", "ไม่สามารถโหลดข้อมูลสมาชิกได้");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
   };
 
   const handleCopyCode = async () => {
@@ -204,6 +219,15 @@ export default function MemberScreen() {
             <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>ยังไม่มีสมาชิกในกลุ่ม</Text>
             </View>
+          }
+
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#FFA500']} // สี Loading ของ Android
+              tintColor="#FFA500"  // สี Loading ของ iOS
+            />
           }
       />
 

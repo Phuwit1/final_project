@@ -70,7 +70,7 @@ export default function RootLayout() {
           <Stack.Screen name="trip/[trip_id]" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
           <Stack.Screen name="trip/[trip_id]/budget" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
           <Stack.Screen name="trip/[trip_id]/editschedule" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
-          <Stack.Screen name="trip/[trip_id]/after-create" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+          <Stack.Screen name="trip/after-create" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
           <Stack.Screen name="trip/[trip_id]/member" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
           <Stack.Screen name="trip/scheduledetail" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
 

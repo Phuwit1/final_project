@@ -13,7 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-const GOOGLE_API_KEY = 'AIzaSyA73tpAfskui7aqX9GXabfGLU0OZ5HLC-U';
+const GOOGLE_API_KEY = '';
 
 export default function EditSchedule() {
   // ✅ รับ trip_id จาก URL และ dayIndex จาก query param

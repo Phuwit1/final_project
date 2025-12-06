@@ -285,43 +285,44 @@ async def leave_trip_group(trip_id: int, db: Prisma = Depends(get_db), current_u
     
 
     # ✅ อันนี้เพิ่มใหม่! เอาไว้ให้ Owner กด "ลบสมาชิก" (Kick)
-@router.delete("/trip_group/{trip_id}/members/{member_id}")
+@router.delete("/trip_group/{trip_id}/members/{group_member_id}") # ✅ เปลี่ยนชื่อตัวแปรให้ชัดเจน
 async def remove_member(
-    trip_id: int,  
+    trip_id: int, 
+    group_member_id: int, # ✅ รับเป็น group_member_id (PK)
     db: Prisma = Depends(get_db), 
     current_user = Depends(get_current_user)
 ):
     try:
-        # 1. ดึงข้อมูลทริปมาตรวจสอบว่า ใครเป็น Owner
-        trip = await db.tripgroup.find_unique(
-            where={"trip_id": trip_id}
-        )
-        
+        # 1. ตรวจสอบสิทธิ์ Owner
+        trip = await db.tripgroup.find_unique(where={"trip_id": trip_id})
         if not trip:
             raise HTTPException(status_code=404, detail="Trip not found")
 
-        # 2. เช็คสิทธิ์: คนสั่งลบ (current_user) ต้องเป็นเจ้าของทริป (owner_id)
         if trip.owner_id != current_user.customer_id:
             raise HTTPException(status_code=403, detail="Only the owner can remove members")
 
-       
-        # 4. ทำการลบสมาชิกเป้าหมาย
-        delete_result = await db.groupmember.delete_many(
-            where={
-                "trip_id": trip_id,
-                "customer_id": current_user.customer_id # ลบคนอื่นตาม ID ที่ส่งมา
-            }
+        # 2. ตรวจสอบว่าสมาชิกคนนี้อยู่ในทริปนี้จริงหรือไม่ (และหาตัวตนก่อนลบ)
+        target_member = await db.groupmember.find_unique(
+            where={"group_member_id": group_member_id}
+        )
+
+        if not target_member or target_member.trip_id != trip_id:
+            raise HTTPException(status_code=404, detail="Member not found in this group")
+
+        # 3. ป้องกัน Owner ลบตัวเอง (เช็คจาก customer_id ของเป้าหมาย)
+        if target_member.customer_id == current_user.customer_id:
+             raise HTTPException(status_code=400, detail="Cannot remove yourself via this endpoint")
+
+        # 4. ทำการลบ (ใช้ delete ธรรมดาเพราะลบจาก ID โดยตรง)
+        await db.groupmember.delete(
+            where={"group_member_id": group_member_id}
         )
         
-        if delete_result.count == 0:
-             raise HTTPException(status_code=404, detail="Member not found in this group")
-
         return {"message": "Member removed successfully"}
 
     except Exception as e:
-        # ควร return เป็น HTTP Exception เพื่อให้ Frontend รับ status code ได้ถูกต้อง
         print(f"Error removing member: {e}")
-        # ถ้าไม่ได้ใช้ HTTPException ใน try ก็ส่ง 500 กลับไป
+        # ถ้า error เป็น HTTPException ให้ raise ต่อไปเลย
         if isinstance(e, HTTPException):
             raise e
         return JSONResponse(status_code=500, content={"error": str(e)})
