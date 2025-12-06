@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_URL } from '@/api.js'
 // 👉 เปลี่ยนให้เป็นของโปรเจกต์คุณ (หรือ import จาก config)
-const API_BASE = 'http://192.168.1.45:8000';
+
 
 type LLMResponse = {
   itinerary: Array<{
