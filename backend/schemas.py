@@ -3,12 +3,12 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time
 
 class Customer(BaseModel):
-    first_name: str
-    last_name: str
-    email: str
-    password: str
-    phone_number: str
-    birth_date: datetime
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    phone_number: Optional[str] = None
+    birth_date: Optional[datetime] = None
     
 class CustomerLogin(BaseModel):
     email: str

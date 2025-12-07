@@ -45,7 +45,7 @@ async def create_customer(customer: Customer, db: Prisma = Depends(get_db)):
 @router.put("/customer/{customer_id}")
 async def update_customer(customer_id: int, customer: Customer, db: Prisma = Depends(get_db)):
     try:
-        customer = customer.model_dump()
+        customer = customer.model_dump(exclude_unset=True)
         customers = await db.customer.update(
             where={"customer_id": customer_id},
             data=customer

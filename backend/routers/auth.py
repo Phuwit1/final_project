@@ -184,8 +184,11 @@ async def get_user(request: Request, db: Prisma = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {
+        "customer_id": user.customer_id,
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "phone_number": user.phone_number,
+        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
         "createdAt": user.createdAt.isoformat() if user.createdAt else None,
     }
