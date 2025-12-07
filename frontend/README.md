@@ -27,6 +27,12 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
    ```
 
+1.1 get sha1
+   ```
+   cloud     eas credentials -p android
+   local    cd android ==> ./gradlew signingReport
+   ```
+
 2. Start the app
 
    ```bash
