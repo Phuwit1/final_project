@@ -15,8 +15,15 @@ sio = socketio.AsyncServer(
 
 socket_app = socketio.ASGIApp(sio, app)
 
+# ==========================================
+# 💾 ส่วนที่เพิ่ม/แก้ไขข้อมูล (Data Store)
+# ==========================================
+
 # เก็บข้อมูล: {socket_id: group_id}
 user_groups: Dict[str, str] = {}
+
+# [ใหม่] เก็บชื่อ: {socket_id: username}
+user_names: Dict[str, str] = {}
 
 # เก็บ location แยกตาม group: {group_id: {socket_id: location_data}}
 group_locations: Dict[str, Dict[str, dict]] = {}
@@ -30,7 +37,9 @@ async def get_status():
     return {
         "status": "online",
         "total_users": len(user_groups),
-        "groups": groups_info
+        "groups": groups_info,
+        # (Optional) ดูรายชื่อคนทั้งหมดเพื่อ debug
+        "users_list": list(user_names.values()) 
     }
 
 @sio.event
@@ -41,71 +50,79 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f'❌ Client disconnected: {sid}')
-    
-    # ถ้าอยู่ใน group ให้ออกจาก group
     if sid in user_groups:
         group_id = user_groups[sid]
         await handle_leave_group(sid, group_id)
 
 async def handle_leave_group(sid, group_id):
     """ฟังก์ชันช่วยสำหรับออกจาก group"""
-    # ลบออกจาก room
     await sio.leave_room(sid, group_id)
     
-    # ลบข้อมูล
+    # ดึงชื่อมาก่อนลบ เพื่อเอาไปแจ้งเตือนคนอื่น
+    username = user_names.get(sid, 'Unknown')
+
+    # [แก้ไข] ลบข้อมูล group และ username
     if sid in user_groups:
         del user_groups[sid]
     
+    if sid in user_names:
+        del user_names[sid]
+    
     if group_id in group_locations and sid in group_locations[group_id]:
         del group_locations[group_id][sid]
-        
-        # ถ้า group ว่างเปล่า ลบ group
         if not group_locations[group_id]:
             del group_locations[group_id]
     
-    # แจ้งคนอื่นใน group
-    await sio.emit('user_left', {'sid': sid}, room=group_id)
-    print(f'   User {sid} left group {group_id}')
+    # แจ้งคนอื่นใน group ว่าใครออก
+    await sio.emit('user_left', {
+        'sid': sid, 
+        'username': username
+    }, room=group_id)
+    
+    print(f'   User {username} ({sid}) left group {group_id}')
 
 @sio.event
 async def join_group(sid, data):
     group_id = data.get('group_id', '').strip()
+    # [ใหม่] รับค่า username ถ้าไม่มีให้ใช้ sid ย่อๆ แทน
+    username = data.get('username', f'User-{sid[:4]}').strip()
     
     if not group_id:
         return {"status": "error", "message": "Invalid group ID"}
     
-    print(f'📥 {sid} joining group: {group_id}')
+    print(f'📥 {username} ({sid}) joining group: {group_id}')
     
-    # ถ้าอยู่ group เดิมอยู่แล้ว ให้ออกก่อน
+    # ถ้าอยู่ group เดิมให้ออกก่อน
     if sid in user_groups:
         old_group = user_groups[sid]
         if old_group != group_id:
             await handle_leave_group(sid, old_group)
     
-    # เข้า room ใหม่
     await sio.enter_room(sid, group_id)
-    user_groups[sid] = group_id
     
-    # สร้าง group ใหม่ถ้ายังไม่มี
+    # [แก้ไข] บันทึกทั้ง Group ID และ Username
+    user_groups[sid] = group_id
+    user_names[sid] = username
+    
     if group_id not in group_locations:
         group_locations[group_id] = {}
     
-    # ส่ง location ของคนอื่นๆ ใน group ให้คนที่เพิ่งเข้ามา
+    # ส่ง location ของคนอื่นให้คนใหม่ (คนใหม่จะเห็นชื่อคนเก่าเพราะข้อมูลมี username แล้ว)
     existing_locations = list(group_locations[group_id].values())
     await sio.emit('group_locations', existing_locations, to=sid)
     
-    # แจ้งคนอื่นใน group ว่ามีคนเข้ามาใหม่
+    # แจ้งคนอื่นว่ามีคนใหม่เข้ามา พร้อมชื่อ
     await sio.emit('user_joined', {
         'sid': sid,
+        'username': username,
         'group_id': group_id
     }, room=group_id, skip_sid=sid)
-    
-    print(f'   Group {group_id} now has {len(group_locations[group_id])} users')
     
     return {
         "status": "success",
         "group_id": group_id,
-        "members_count": len(group_locations[group_id])
+        "username": username,
+        "members_count": len(group_locations[group_id]) + 1 # +1 ตัวเองที่เพิ่งเข้า (ถ้ายังไม่ส่ง loc จะยังไม่มีใน dict)
     }
 
 @sio.event
@@ -114,28 +131,25 @@ async def leave_group(sid, data):
         return {"status": "error", "message": "Not in any group"}
     
     group_id = user_groups[sid]
-    print(f'📤 {sid} leaving group: {group_id}')
-    
     await handle_leave_group(sid, group_id)
-    
     return {"status": "success"}
 
 @sio.event
 async def update_location(sid, data):
-    # เช็คว่าอยู่ใน group ไหม
     if sid not in user_groups:
         return {"status": "error", "message": "Not in any group"}
     
     group_id = user_groups[sid]
+    # [ใหม่] ดึงชื่อผู้ใช้มาด้วย
+    username = user_names.get(sid, 'Unknown')
+
     lat = data.get('lat')
     lng = data.get('lng')
     
-    print(f"📍 Location from {sid} in group {group_id}:")
-    print(f"   Lat: {lat}, Lng: {lng}")
-    
-    # เก็บข้อมูล location
+    # [แก้ไข] เพิ่ม username เข้าไปใน object ที่จะเก็บและส่ง
     location_data = {
         'sid': sid,
+        'username': username,
         'lat': lat,
         'lng': lng,
         'timestamp': data.get('timestamp'),
@@ -144,16 +158,12 @@ async def update_location(sid, data):
     
     group_locations[group_id][sid] = location_data
     
-    # ส่งไปหาคนอื่นใน group เดียวกันเท่านั้น
-    members_count = len(group_locations[group_id])
-    print(f"   Broadcasting to {members_count - 1} members in group {group_id}")
-    
+    # Broadcast
     await sio.emit('location_update', location_data, room=group_id, skip_sid=sid)
     
     return {
         "status": "received",
-        "group_id": group_id,
-        "members_count": members_count
+        "username": username
     }
 
 if __name__ == '__main__':
@@ -161,12 +171,12 @@ if __name__ == '__main__':
     print("🚀 Socket.IO Server with Group System")
     print("="*60)
     print("📍 Endpoints:")
-    print("   - WebSocket: ws://0.0.0.0:8000")
-    print("   - Status API: http://0.0.0.0:8000/api/status")
+    print("   - WebSocket: ws://0.0.0.0:8010")
+    print("   - Status API: http://0.0.0.0:8010/api/status")
     print("="*60)
     print("📋 Events:")
     print("   - join_group: เข้า group")
     print("   - leave_group: ออกจาก group")
     print("   - update_location: ส่ง location (ต้องอยู่ใน group)")
     print("="*60)
-    uvicorn.run(socket_app, host='0.0.0.0', port=8000, log_level="warning")
+    uvicorn.run(socket_app, host='0.0.0.0', port=8010, log_level="warning")

@@ -18,7 +18,8 @@ from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 from contextlib import asynccontextmanager
-
+import subprocess
+import sys
 
 from routers import auth, customer, trip_group, budget, trip_plan, ai
 from dependencies import load_cities_data, get_cities_list, cities_data, SECRET_KEY, ALGORITHM, get_db
@@ -39,8 +40,21 @@ app = FastAPI(lifespan=lifespan)
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
+    # สั่งรัน get_location.py แบบ Background process
+    # sys.executable คือตัวระบุว่าให้ใช้ python ตัวเดียวกับที่รัน main.py
+    process = subprocess.Popen([sys.executable, "get_location.py"])
+    
+    try:
+        print("Starting get_location.py...")
+        # รัน Server
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    except KeyboardInterrupt:
+        # (Optional) จัดการตอนกด Ctrl+C เพื่อปิด get_location.py ด้วยถ้าจำเป็น
+        pass
+    finally:
+        # สั่งปิด get_location.py เมื่อ main.py หยุดทำงาน
+        process.terminate()
+        print("Stopped get_location.py")
 # class for request model
 
 

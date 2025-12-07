@@ -9,8 +9,8 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
-/android
-/ios
+/android*
+/ios*
 
 # Native
 *.orig.*
@@ -41,3 +41,5 @@ yarn-error.*
 app-example
 
 .idea/
+
+.env*
