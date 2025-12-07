@@ -98,7 +98,7 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <View style={styles.container}><Text>กรุณาเข้าสู่ระบบss</Text>
+      <View style={styles.container}><Text>กรุณาเข้าสู่ระบบ</Text>
       <TouchableOpacity onPress={() => router.push('/Login')}>
         <Text>🔑 ไปหน้า Login</Text>
       </TouchableOpacity></View>
