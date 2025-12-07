@@ -5,7 +5,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 export default function ModalLayout() {
   return (
     <BottomSheetModalProvider>
-    <Stack screenOptions={{ presentation: 'modal' }}>
+    <Stack screenOptions={{ presentation: 'modal',headerShown: false }}> 
     </Stack>
     </BottomSheetModalProvider>
   );

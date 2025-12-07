@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, Alert, StyleSheet, ScrollView, TouchableOpacity, Platform  } from 'react-native';
+import { View, Text, TextInput, Button, Alert, StyleSheet, ScrollView, TouchableOpacity, Platform, Image  } from 'react-native';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_URL } from '@/api.js'
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function RegisterScreen({ navigation } : { navigation: any }) {
   const [form, setForm] = useState({
@@ -73,6 +74,10 @@ export default function RegisterScreen({ navigation } : { navigation: any }) {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.formContainer}>
+          <Image 
+          source={require('../../assets/images/adaptive-icon.png')}
+          style={styles.tabigologo}
+          ></Image>
           <Text style={styles.title}>สมัครสมาชิก</Text>
           <TextInput
             style={styles.input}
@@ -125,9 +130,16 @@ export default function RegisterScreen({ navigation } : { navigation: any }) {
             onChangeText={(text) => setForm({ ...form, password: text })}
           />
 
-          <View style={styles.buttonContainer}>
-            <Button title="สร้างบัญชี" onPress={handleRegister} />
-          </View>
+          <TouchableOpacity onPress={handleRegister} style={styles.buttonContainer} >
+            <LinearGradient  
+              colors={['#fc8c54ff', '#FF5E62']}          
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}  
+              style={styles.gradientButton}
+             >
+              <Text style={styles.buttonText}>สร้างบัญชี</Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
             <View style={styles.loginContainer}>
             <Text style={styles.loginText}>มีบัญชีอยู่แล้ว? </Text>
@@ -156,7 +168,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 350,
     alignSelf: 'center',
     alignItems: 'center',
   },
@@ -169,7 +181,6 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '100%',
-
     borderWidth: 1,
     borderColor: '#ddd',
     backgroundColor: '#f9f9f9',
@@ -194,6 +205,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
+  gradientButton: {
+    padding: 15,
+    alignItems: 'center',
+    borderRadius: 16, // ทำมุมโค้งมน
+    width: '100%',    // หรือกำหนดความกว้างที่ต้องการ
+  },
+  buttonText: {
+    backgroundColor: 'transparent',
+    fontSize: 18,
+    color: '#fff', // ตัวหนังสือสีขาว
+    fontWeight: 'bold',
+  },
+  tabigologo :{
+    width: 120,
+    height: 120,
+    marginBottom: 20,
+  },
   loginContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -205,7 +233,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   loginLink: {
-    color: '#4285f4',
+    color: '#fc9a4fff',
     fontSize: 16,
     fontWeight: '600',
     textDecorationLine: 'underline',

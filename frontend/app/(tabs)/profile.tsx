@@ -133,17 +133,7 @@ export default function ProfileScreen() {
 
           <Text style={styles.joinDate}>สมาชิกตั้งแต่ {format(new Date(user.createdAt), "d MMM yyyy", { locale: th })}</Text>
 
-          <Text style={styles.sectionTitle}>เกี่ยวกับฉัน</Text>
-          {isEditing ? (
-            <TextInput
-              style={styles.textArea}
-              multiline
-              value={tempInfo.bio}
-              onChangeText={val => setTempInfo({ ...tempInfo, bio: val })}
-            />
-          ) : (
-            <Text style={styles.bio}>{user.bio}</Text>
-          )}
+          
 
           <Text style={styles.sectionTitle}>ข้อมูลติดต่อ</Text>
           {['email', 'phone', 'birthDate'].map((field, i) => (
@@ -168,10 +158,10 @@ export default function ProfileScreen() {
           {isEditing && (
             <View style={styles.buttonGroup}>
               <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={handleSave}>
-                <Text style={styles.buttonText}>💾 บันทึก</Text>
+                <Text style={styles.buttonText}>บันทึก</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={handleCancel}>
-                <Text style={styles.buttonText}>✕ ยกเลิก</Text>
+                <Text style={styles.buttonText}>ยกเลิก</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -201,13 +191,16 @@ export default function ProfileScreen() {
                     key={trip.trip_id || trip.plan_id}
                     onPress={() => router.push(`/trip/${trip.plan_id}`)}
                   >
-                    <FinishedTripCard
+                    {isFinished ? (<FinishedTripCard
                         name={trip.name_group}
                         date={formattedDate}
                         budget={trip.budget?.total_budget || 0}
                         people={trip.members?.length ? trip.members.length + 1 : 1}
                         city="Tokyo, Kyoto" // ถ้ามีข้อมูลเมืองในอนาคตก็ใส่ตรงนี้
-                    />
+                    />) : null
+                    
+                    }
+                    
                   </TouchableOpacity>
                 );
               })
@@ -241,11 +234,13 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
   headerText: {
+    alignItems: 'center',
+    justifyContent: 'center',
     fontSize: 22,
     fontWeight: 'bold',
   },
@@ -295,7 +290,7 @@ const styles = StyleSheet.create({
     color: '#888'
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     marginTop: 16,
     marginBottom: 8,

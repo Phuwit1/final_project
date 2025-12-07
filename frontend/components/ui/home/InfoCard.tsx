@@ -32,10 +32,7 @@ export default function InfoCard() {
                 </Text>
             
             </TouchableOpacity>
-            </View>
-
-                
-            
+            </View> 
         </View>
     )
 }

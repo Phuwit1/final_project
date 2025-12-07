@@ -32,11 +32,14 @@ export default function Home(){
       console.log('Fetch user error:', err.response?.data || err.message);
     }
   };
-  useFocusEffect(
+
+    useFocusEffect(
       React.useCallback(() => {
         fetchProfile();
       }, [])
     );
+
+    const fullname = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest';
   
     return (
       <ParallaxScrollView
@@ -50,7 +53,7 @@ export default function Home(){
             <View style={styles.imageOverlay} />
 
               <View style={styles.overlayContent}>
-                <Text style={styles.welcomeText}>Welcome, {user?.first_name || "ไม่มี"} {user?.last_name || "ไม่มี"} </Text>
+                <Text style={styles.welcomeText}>Welcome, {fullname} </Text>
                 
                 <CurrentCard />
                 

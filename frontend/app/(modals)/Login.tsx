@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { showMessage } from 'react-native-flash-message';
+import { LinearGradient } from 'expo-linear-gradient';
 import { API_URL } from '@/api.js'
 
 import {
@@ -118,6 +119,10 @@ export default function Login() {
   return (
     <View style={styles.container}>
       <View style={styles.formContainer}>
+        <Image 
+        source={require('../../assets/images/adaptive-icon.png')}
+        style={styles.tabigologo}>
+        </Image>
         <Text style={styles.title}>เข้าสู่ระบบ</Text>
         
         <TextInput
@@ -137,9 +142,17 @@ export default function Login() {
           onChangeText={setPassword}
         />
         
-        <View style={styles.buttonContainer}>
-          <Button title="เข้าสู่ระบบ" onPress={handleLogin} />
-        </View>
+        <TouchableOpacity onPress={handleLogin} style={styles.buttonContainer} disabled={isSubmitting}>
+          <LinearGradient  
+            colors={['#fc8c54ff', '#FF5E62']}          
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            
+            style={styles.gradientButton}
+          >
+            <Text style={styles.buttonText}>เข้าสู่ระบบ</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
@@ -174,11 +187,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 18,
   },
   formContainer: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 350,
     alignItems: 'center',
   },
   title: {
@@ -203,6 +216,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
+  gradientButton: {
+    padding: 15,
+    alignItems: 'center',
+    borderRadius: 16, // ทำมุมโค้งมน
+    width: '100%',    // หรือกำหนดความกว้างที่ต้องการ
+  },
+  buttonText: {
+    backgroundColor: 'transparent',
+    fontSize: 18,
+    color: '#fff', // ตัวหนังสือสีขาว
+    fontWeight: 'bold',
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,7 +248,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: 'black',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: 16,
     alignItems: 'center',
     marginTop: 10,
   },
@@ -232,9 +257,14 @@ const styles = StyleSheet.create({
     height: 18,
     marginRight: 10,
   },
+  tabigologo:{
+    width: 100,
+    height: 100,
+    marginBottom: 20,
+  },
   googleButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
    googleButtonContent: {
@@ -252,7 +282,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   registerLink: {
-    color: '#4285f4',
+    color: '#fc9a4fff',
     fontSize: 16,
     fontWeight: '600',
     textDecorationLine: 'underline',

@@ -26,6 +26,7 @@ export default function CurrentCard() {
   const [currentTrip, setCurrentTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasAnyTrip, setHasAnyTrip] = useState(false); // เช็คว่าเคยมีทริปบ้างไหม
+  const [user, setUser] = useState<any>(null);
 
   // โหลดข้อมูลทุกครั้งที่หน้าจอถูก Focus (เช่น กลับมาจากหน้าอื่น)
   useFocusEffect(
@@ -46,6 +47,13 @@ export default function CurrentCard() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      const res_user = await axios.get(`${API_URL}/user`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(res_user.data);
+
+      
+
       if (Array.isArray(res.data) && res.data.length > 0) {
         setHasAnyTrip(true);
         const trips = res.data;
@@ -55,23 +63,33 @@ export default function CurrentCard() {
         const onTrip = trips.find((t: Trip) => {
           const start = dayjs(t.start_plan_date);
           const end = dayjs(t.end_plan_date);
-          return now.isSame(start, 'day') || now.isSame(end, 'day') || (now.isAfter(start) && now.isBefore(end));
+          return (now.isSame(start, 'day') || now.isAfter(start, 'day')) && 
+                 (now.isSame(end, 'day') || now.isBefore(end, 'day'));
         });
 
         if (onTrip) {
           setCurrentTrip(onTrip);
         } else {
-          // 2. ถ้าไม่มี On Trip ให้หา Trip ที่จบไปแล้วล่าสุด (Trip Ended)
-          // เรียงจากจบใหม่สุดไปเก่าสุด
-          const endedTrips = trips
-            .filter((t: Trip) => dayjs(t.end_plan_date).isBefore(now, 'day'))
-            .sort((a: Trip, b: Trip) => dayjs(b.end_plan_date).diff(dayjs(a.end_plan_date)));
+          // 2. ถ้าไม่มี On Trip -> หา Trip ที่กำลังจะมาถึง (Upcoming) [Priority 2]
+          // เงื่อนไข: วันเริ่ม ต้องมากกว่า วันปัจจุบัน
+          const upcomingTrips = trips
+            .filter((t: Trip) => dayjs(t.start_plan_date).isAfter(now, 'day'))
+            .sort((a: Trip, b: Trip) => dayjs(a.start_plan_date).diff(dayjs(b.start_plan_date))); // เรียงจาก ใกล้ -> ไกล
 
-          if (endedTrips.length > 0) {
-            setCurrentTrip(endedTrips[0]);
+          if (upcomingTrips.length > 0) {
+            setCurrentTrip(upcomingTrips[0]); // เอาอันที่ใกล้ที่สุด
           } else {
-            // กรณีมีแต่ Upcoming หรือไม่มีทริปที่เข้าเงื่อนไขเลย
-            setCurrentTrip(null);
+            // 3. ถ้าไม่มี Upcoming -> หา Trip ที่จบไปแล้ว (Ended) [Priority 3]
+            // เงื่อนไข: วันจบ ต้องน้อยกว่า วันปัจจุบัน
+            const endedTrips = trips
+              .filter((t: Trip) => dayjs(t.end_plan_date).isBefore(now, 'day'))
+              .sort((a: Trip, b: Trip) => dayjs(b.end_plan_date).diff(dayjs(a.end_plan_date))); // เรียงจาก จบล่าสุด -> จบนานแล้ว
+
+            if (endedTrips.length > 0) {
+              setCurrentTrip(endedTrips[0]); // เอาอันที่จบล่าสุด
+            } else {
+              setCurrentTrip(null); // ไม่มีทริปเลย
+            }
           }
         }
       } else {
@@ -93,6 +111,10 @@ export default function CurrentCard() {
     router.push('/(modals)/join-trip'); // เปลี่ยน path ตามหน้า Join
   };
 
+  const handleLogin = () => {
+    router.push('/(modals)/Login'); // เปลี่ยน path ตามหน้าล็อกอินของคุณ
+  }
+
   const handlePressCard = () => {
     if (currentTrip) {
       router.push(`/trip/${currentTrip.plan_id}`);
@@ -111,6 +133,20 @@ export default function CurrentCard() {
         <ActivityIndicator color="#FFB7C5" />
       </View>
     );
+  }
+
+  if(!user){
+    return(
+    <View style={[styles.card, styles.emptyCard]}>
+      <Text style={styles.emptyTitlelogin}>กรุณาเข้าสู่ระบบเพื่อใช้งาน</Text>
+
+      <TouchableOpacity style={styles.sakuraButton} onPress={handleLogin}>
+        <Ionicons name="log-in-outline" size={20} color="white" />
+        <Text style={styles.buttonText}>เข้าสู่ระบบ</Text>
+      </TouchableOpacity>
+    </View>
+    );
+
   }
 
   // กรณีไม่มีทริปเลย (หรือไม่มี OnTrip/Ended)
@@ -136,19 +172,46 @@ export default function CurrentCard() {
   }
 
   const isEnded = dayjs().isAfter(dayjs(currentTrip.end_plan_date));
-  // กรณีมีทริป (แสดง On Trip หรือ Last Ended)
+
+  const getTripStatusLabel = () => {
+    if (!currentTrip) return "";
+    
+    const now = dayjs();
+    const start = dayjs(currentTrip.start_plan_date);
+    const end = dayjs(currentTrip.end_plan_date);
+
+    if (now.isBefore(start, 'day')) {
+        return (
+
+            <Text style={[styles.statusUpcoming, styles.statusText]}>
+                ทริปกำลังจะมาถึง
+            </Text>      
+        ); // Upcoming
+    } else if (now.isAfter(end, 'day')) {
+        return (
+        <Text style={[styles.statusEnded, styles.statusText]}>
+                ทริปสิ้นสุดแล้ว
+        </Text>
+        ); // Ended
+    } else {
+        return (
+        <Text style={[styles.statusActive, styles.statusText]}>
+                กำลังเดินทาง
+        </Text>
+        ); // On Trip
+    }
+  };
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={styles.cardHeader}>ทริปล่าสุด</Text>
         
-        {/* ด้านขวา: สถานะ + ปุ่ม (ถ้ามี) */}
-        <View style={styles.rightHeader}>
-            <Text style={[styles.statusText, isEnded ? styles.statusEnded : styles.statusActive]}>
-                {isEnded ? "จบแล้ว" : "กำลังเดินทาง"}
-            </Text>
 
-            {/* แสดงปุ่มเฉพาะเมื่อทริปจบแล้ว */}
+        <View style={styles.rightHeader}>
+
+                {getTripStatusLabel()}
+ 
             {isEnded && (
             <TouchableOpacity style={styles.smallSakuraBtn} onPress={handleCreateTrip}>
                 <Text style={styles.smallSakuraText}>+ ทริปใหม่</Text>
@@ -173,7 +236,9 @@ export default function CurrentCard() {
           <View style={styles.detailRow}>
             <Ionicons name="person-outline" size={14} color="#666" />
             <Text style={styles.detailText}>
-               {currentTrip.tripGroup?.members ? currentTrip.tripGroup.members.length + 1 : 1} คน
+              {currentTrip.tripGroup?.members && currentTrip.tripGroup.members.length > 0 
+                    ? currentTrip.tripGroup.members.length 
+                    : 1} คน           
             </Text>
           </View>
         </View>
@@ -217,6 +282,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+   
   },
   statusText: {
     fontSize: 12,
@@ -230,6 +296,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#57de6eff',
+  },
+  statusUpcoming:{
+    backgroundColor: '#f88c40ff', // Lavender Blush (สีพื้นอ่อนๆ)
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f38f2cff',
+    
   },
   statusEnded: {
     color: '#888',
@@ -291,6 +366,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
+  },
+  emptyTitlelogin:{
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
   },
   emptySubtitle: {
     fontSize: 14,
