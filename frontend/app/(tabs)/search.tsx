@@ -10,9 +10,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
+// เปลี่ยน path ให้ตรงกับโครงสร้างโปรเจคของคุณ
 import { API_URL, WEBSOCKET_URL } from '@/api.js'; 
 
-let globalSocket = null;
+let globalSocket: any = null;
+
 const getSocket = () => {
     if (!globalSocket) {
         globalSocket = io(WEBSOCKET_URL, {
@@ -29,26 +31,27 @@ const getSocket = () => {
 };
 
 export default function App() {
-    const [status, setStatus] = useState('Disconnected');
-    const [socketId, setSocketId] = useState('');
-    const [myLocation, setMyLocation] = useState(null);
-    const [otherLocations, setOtherLocations] = useState({});
-    const [groupInput, setGroupInput] = useState('');
-    const [usernameInput, setUsernameInput] = useState('');
-    const [currentGroup, setCurrentGroup] = useState(null);
-    const [myUsername, setMyUsername] = useState('');
-    const [isLoadingUser, setIsLoadingUser] = useState(true);
-    const [hasCenteredOnOpen, setHasCenteredOnOpen] = useState(false);
+    const [status, setStatus] = useState<string>('Disconnected');
+    const [socketId, setSocketId] = useState<string>('');
+    const [myLocation, setMyLocation] = useState<any>(null);
+    const [otherLocations, setOtherLocations] = useState<any>({});
+    const [groupInput, setGroupInput] = useState<string>('');
+    const [usernameInput, setUsernameInput] = useState<string>('');
+    const [currentGroup, setCurrentGroup] = useState<any>(null);
+    const [myUsername, setMyUsername] = useState<string>('');
+    const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
+    const [hasCenteredOnOpen, setHasCenteredOnOpen] = useState<boolean>(false);
 
-    const [isMapVisible, setIsMapVisible] = useState(false);
+    const [isMapVisible, setIsMapVisible] = useState<boolean>(false);
 
-    const socketRef = useRef(null);
-    const locationSubscription = useRef(null);
-    const mapRef = useRef(null);
+    // ใช้ any กับ ref ทั้งหมด
+    const socketRef = useRef<any>(null);
+    const locationSubscription = useRef<any>(null);
+    const mapRef = useRef<any>(null);
 
     // 🔥 ป้องกัน Map ค้างหลังกลับ foreground
     useEffect(() => {
-        const sub = AppState.addEventListener("change", state => {
+        const sub = AppState.addEventListener("change", (state: any) => {
             if (state === "active" && myLocation && mapRef.current) {
                 mapRef.current.animateCamera({
                     center: {
@@ -73,13 +76,13 @@ export default function App() {
                         setIsLoadingUser(false);
                         return;
                     }
-                    const res = await axios.get(`${API_URL}/user`, {
+                    const res: any = await axios.get(`${API_URL}/user`, {
                         headers: { Authorization: `Bearer ${token}` },
                     });
                     if (res.data) {
                         setUsernameInput(res.data.first_name + " " + res.data.last_name);
                     }
-                } catch (err) {
+                } catch (err: any) {
                     console.error("Fetch user error:", err);
                 } finally {
                     setIsLoadingUser(false);
@@ -95,20 +98,20 @@ export default function App() {
 
         socket.on('connect', () => { setStatus('Connected'); setSocketId(socket.id); });
         socket.on('disconnect', () => { setStatus('Disconnected'); setSocketId(''); setCurrentGroup(null); setOtherLocations({}); });
-        socket.on('connect_error', (err) => { setStatus(`Error: ${err.message}`); });
+        socket.on('connect_error', (err: any) => { setStatus(`Error: ${err.message}`); });
 
-        socket.on('location_update', (data) => 
-            setOtherLocations(prev => ({ ...prev, [data.sid]: data }))
+        socket.on('location_update', (data: any) => 
+            setOtherLocations((prev: any) => ({ ...prev, [data.sid]: data }))
         );
 
-        socket.on('group_locations', (locations) => {
-            const locMap = {};
-            locations.forEach(loc => { if (loc.sid !== socket.id) locMap[loc.sid] = loc; });
+        socket.on('group_locations', (locations: any) => {
+            const locMap: any = {};
+            locations.forEach((loc: any) => { if (loc.sid !== socket.id) locMap[loc.sid] = loc; });
             setOtherLocations(locMap);
         });
 
-        socket.on('user_left', (data) => {
-            setOtherLocations(prev => {
+        socket.on('user_left', (data: any) => {
+            setOtherLocations((prev: any) => {
                 const newLocs = { ...prev };
                 delete newLocs[data.sid];
                 return newLocs;
@@ -165,7 +168,7 @@ export default function App() {
 
         locationSubscription.current = await Location.watchPositionAsync(
             { accuracy: Location.Accuracy.High, timeInterval: 3000, distanceInterval: 10 },
-            (location) => {
+            (location: any) => {
                 const payload = {
                     lat: location.coords.latitude,
                     lng: location.coords.longitude,
@@ -193,7 +196,7 @@ export default function App() {
         if (!socket || !socket.connected) return;
 
         setOtherLocations({});
-        socket.emit('join_group', { group_id: groupInput, username: usernameInput }, (response) => {
+        socket.emit('join_group', { group_id: groupInput, username: usernameInput }, (response: any) => {
             if (response.status === 'success') {
                 setCurrentGroup(response.group_id);
                 setMyUsername(response.username);
@@ -212,13 +215,13 @@ export default function App() {
         setGroupInput('');
     };
 
-    const formatTime = (timestamp) => {
+    const formatTime = (timestamp: any) => {
         if (!timestamp) return '';
         const date = new Date(timestamp);
         return date.toLocaleTimeString('th-TH');
     };
 
-    const otherUsers = Object.values(otherLocations);
+    const otherUsers: any[] = Object.values(otherLocations);
 
     return (
         <View style={{ flex: 1 }}>
@@ -288,7 +291,7 @@ export default function App() {
                 {currentGroup && otherUsers.length > 0 && (
                     <View style={styles.othersContainer}>
                         <Text style={styles.boxTitle}>👥 Friends Nearby ({otherUsers.length})</Text>
-                        {otherUsers.map((loc) => (
+                        {otherUsers.map((loc: any) => (
                             <View key={loc.sid} style={styles.locationBox}>
                                 <Text style={styles.userLabel}>👤 {loc.username}</Text>
                                 <Text>Lat: {loc.lat?.toFixed(6)}, Lng: {loc.lng?.toFixed(6)}</Text>
@@ -351,7 +354,7 @@ export default function App() {
                             )}
 
                             {/* Marker เพื่อนๆ */}
-                            {otherUsers.map((user) => (
+                            {otherUsers.map((user: any) => (
                                 <Marker
                                     key={user.sid}
                                     coordinate={{
