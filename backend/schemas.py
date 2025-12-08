@@ -87,3 +87,15 @@ class JoinGroupRequest(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     token: str
+
+class Location(BaseModel):
+    itinerary_data: Dict[str, Any]
+
+class RouteSummarizeRequest(BaseModel):
+    route: Dict[str, Any]
+
+class RouteRequest(BaseModel):
+    start: str
+    goal: str
+    start_time: str
+    

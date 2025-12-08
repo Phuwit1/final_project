@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from schemas import ChatBody
-from llm import query_llm, query_llm_fix, Item, FixRequest
+from llm import query_llm, query_llm_fix, Item, FixRequest, Location, get_location
+from route import route, route_summarize, RouteRequest, RouteSummarizeRequest
 import re
 
 router = APIRouter(tags=["AI"])
@@ -33,3 +34,16 @@ async def ai_chat(body: ChatBody):
 
     generated = await query_llm(Item(start_date=body.start_date, end_date=body.end_date, cities=[], text=user_text))
     return {"reply": "นี่คือร่างแผนทริปค่ะ", "itinerary": generated}
+
+
+@router.post("/get_location/")
+async def get_location_for_itinerary(text: Location):
+    return  await get_location(text)
+
+@router.get("/route")
+async def get_route(text: RouteRequest = Depends()):
+    return await route(text)
+
+@router.post("/route/summarize")
+async def summarize_routee(text: RouteSummarizeRequest):
+    return await route_summarize(text)

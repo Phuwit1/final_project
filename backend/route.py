@@ -1,5 +1,5 @@
 from typing import Union, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 import requests
 import os
 from dotenv import load_dotenv, dotenv_values
@@ -20,8 +20,7 @@ class RouteRequest(BaseModel):
     goal: str
     start_time: str
 
-@app.get("/route")
-async def route(text: RouteRequest):
+async def route(text: RouteRequest = Depends()):
     url = "https://navitime-route-totalnavi.p.rapidapi.com/route_transit"
     rapidapi_key = os.getenv("RAPIDAPI_KEY")
 
@@ -39,7 +38,6 @@ async def route(text: RouteRequest):
         return {"error": "Failed to fetch data from the API", "status_code": response.status_code}
 
 
-@app.post("/route/summarize")
 async def route_summarize(text: RouteSummarizeRequest):
     json_structure = """
         [

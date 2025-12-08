@@ -12,8 +12,10 @@ import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplet
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { G } from 'react-native-svg';
+//import '@/dotenv/config';
 
-const GOOGLE_API_KEY = '';
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || 'AIzaSyA73tpAfskui7aqX9GXabfGLU0OZ5HLC-U';
 
 export default function EditSchedule() {
   // ✅ รับ trip_id จาก URL และ dayIndex จาก query param
@@ -76,6 +78,7 @@ export default function EditSchedule() {
       copy.itinerary[dayIdx].schedule[actIdx][field] = value;
       return copy;
     });
+  
   };
 
   const confirmPlan = async () => {
@@ -102,6 +105,7 @@ export default function EditSchedule() {
   };
   const handleAddActivity = () => {
     setIsSearchVisible(true);
+    console.log(GOOGLE_API_KEY);
   };
 
   const onPlaceSelected = (data: any, details: any = null) => {

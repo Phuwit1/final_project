@@ -1,31 +1,27 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import {
-  View, Text, TouchableOpacity, TextInput, FlatList, StyleSheet, Dimensions,
-  Keyboard, Platform, Animated, ActivityIndicator
+import React, { useState, useEffect } from 'react';
+import { 
+  View, Text, StyleSheet, TouchableOpacity, 
+  ActivityIndicator, Alert, Dimensions, Platform 
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import dayjs from 'dayjs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import isBetween from 'dayjs/plugin/isBetween';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 
-// --- ชนิดที่ DailyPlanTabs ต้องการ ---
-type TimeSlot = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT';
-type DailyPlan = {
-  day: number;
-  date: string;                                   // YYYY-MM-DD
-  items: Partial<Record<TimeSlot, string[]>>;     // ข้อความกิจกรรม (ผมใส่ "HH:mm ชื่อกิจกรรม")
-};
-// --- ชนิดข้อความในแชท ---
-type Msg = {
-  id: string;
-  role: 'user' | 'assistant';
-  content?: string;
-  kind?: 'itinerary';
-  itinerary?: any;                                 // raw LLM itinerary ใช้พรีวิว
-};
+// Setup dayjs
+dayjs.extend(isBetween);
+dayjs.extend(customParseFormat);
+
+interface FloatingChatProps {
+  planId: number;
+  apiBaseUrl: string; // http://192.168.1.45:8000
+}
 
 type ScheduleItem = {
-  time: string; // "HH:mm"
+  time: string;
   activity: string;
   need_location: boolean;
   specific_location_name: string | null;
@@ -33,566 +29,323 @@ type ScheduleItem = {
   lng: number | null;
 };
 
-type DaySchedule = {
-  date: string;  // "YYYY-MM-DD"
-  day: string;   // "Day x"
+type ItineraryDay = {
+  day: string;
+  date: string;
   schedule: ScheduleItem[];
 };
 
-type ItineraryPayload = {
-  itinerary: DaySchedule[];
-  comments?: string;
-};
+export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [routeInfo, setRouteInfo] = useState<any>(null);
+  const [nextActivity, setNextActivity] = useState<ScheduleItem | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-type TripScheduleIn = {
-  plan_id: number;
-  date: string;        // 'YYYY-MM-DD'
-  time: string;        // 'HH:mm:ss'
-  activity: string;
-  description: string; // เก็บว่างไปก่อน
-};
-
-
-// --- ชนิดพร็อพ ---
-type Props = {
-  apiBaseUrl: string;
-  dayCount: number;
-  planId: number; 
-  onNavigateToDay: (index: number) => void;
-  startDate: string;                 // ISO e.g. "2025-10-05"
-  endDate: string;                   // ISO
-  itineraryData?: any;               // อาจเป็น raw LLM หรือ DailyPlan[] ก็ได้ (เราจะตรวจรูปแบบ)
-  onPatchItinerary?: (newPlans: DailyPlan[]) => void; // ส่งเวอร์ชันแปลงแล้วให้หน้า DailyPlanTabs
-  fabBottom?: number;
-  fabRight?: number;
-};
-
-const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
-
-// ===== Utils =====
-const parseDayIntent = (text: string): number | null => {
-  const m =
-    /(?:ไป\s*วันที่|ไป\s*วัน|วันที่|วัน|day)\s*(\d{1,2})/i.exec(text) ||
-    /(?:go\s*to\s*day)\s*(\d{1,2})/i.exec(text) ||
-    /(?:ไป)\s*(\d{1,2})\b/i.exec(text);
-  if (!m) return null;
-  const d = parseInt(m[1], 10);
-  return Number.isNaN(d) ? null : d;
-};
-const ddmmyyyy = (iso: string) => {
-  const d = dayjs(iso);
-  return d.isValid() ? d.format('DD/MM/YYYY') : iso;
-};
-const isRawLLMItinerary = (x: any) =>
-  x && typeof x === 'object' && Array.isArray(x.itinerary);
-
-// เวลา → slot
-const timeToSlot = (time: string): TimeSlot => {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(time || '');
-  if (!m) return 'MORNING';
-  const h = Math.max(0, Math.min(23, parseInt(m[1], 10)));
-  const minOfDay = h * 60 + parseInt(m[2], 10);
-  if (minOfDay >= 5 * 60 && minOfDay < 12 * 60) return 'MORNING';
-  if (minOfDay >= 12 * 60 && minOfDay < 17 * 60) return 'AFTERNOON';
-  if (minOfDay >= 17 * 60 && minOfDay < 21 * 60) return 'EVENING';
-  return 'NIGHT';
-};
-
-// แปลง raw LLM itinerary -> DailyPlan[]
-const mapLLMToDailyPlans = (raw: any, startIso: string, endIso: string): DailyPlan[] => {
-  if (!isRawLLMItinerary(raw)) return [];
-  const daysArr: any[] = raw.itinerary || [];
-
-  // ทำ index day: จาก label "Day x" ถ้าไม่มีใช้ตำแหน่ง
-  const getDayIndex = (dayLabel: any, i: number): number => {
-    if (typeof dayLabel === 'string') {
-      const m = /day\s*(\d+)/i.exec(dayLabel);
-      if (m) {
-        const d = parseInt(m[1], 10);
-        if (!Number.isNaN(d) && d > 0) return d;
-      }
-    }
-    return i + 1;
-  };
-
-  const start = dayjs(startIso);
-  const end = dayjs(endIso);
-  const total = Math.max(1, end.diff(start, 'day') + 1);
-
-  // PUSH DATABASE 
-  
-
-  // เตรียมโครงว่างตามจำนวนวันทริปทั้งหมด (ให้ต่อเนื่อง)
-  const blank: DailyPlan[] = Array.from({ length: total }, (_, idx) => ({
-    day: idx + 1,
-    date: start.add(idx, 'day').format('YYYY-MM-DD'),
-    items: {},
-  }));
-
-  // อัดข้อมูลลงโครง
-  daysArr.forEach((d, i) => {
-    const idx = getDayIndex(d?.day, i) - 1;
-    if (idx < 0 || idx >= blank.length) return;
-    // วันที่: ถ้า LLM ให้มาก็ใช้, ไม่งั้นใช้คำนวณจาก start
-    const dateStr = typeof d?.date === 'string' && dayjs(d.date).isValid()
-      ? dayjs(d.date).format('YYYY-MM-DD')
-      : blank[idx].date;
-
-    const items: Partial<Record<TimeSlot, string[]>> = { ...blank[idx].items };
-    (Array.isArray(d?.schedule) ? d.schedule : []).forEach((s: any) => {
-      const t: string = s?.time ?? '';
-      const act: string = s?.activity ?? '';
-      if (!act) return;
-      const slot = timeToSlot(t);
-      const line = t ? `${t} ${act}` : act; // ให้เห็นเวลาในลิสต์
-      items[slot] = [...(items[slot] ?? []), line];
-    });
-
-    blank[idx] = { day: idx + 1, date: dateStr, items };
-  });
-
-  return blank;
-};
-
-// สรุปเพื่อพรีวิวในบับเบิล
-const summarizeItinerary = (raw: any): string[] => {
-  if (!isRawLLMItinerary(raw)) return [];
-  const days = raw.itinerary || [];
-  return days.map((d: any, i: number) => {
-    const label = typeof d?.day === 'string' ? d.day : `Day ${i + 1}`;
-    const date = d?.date ? `(${d.date})` : '';
-    const first3 = Array.isArray(d?.schedule)
-      ? d.schedule.slice(0, 3).map((s: any) => `${s?.time ?? ''} ${s?.activity ?? ''}`.trim()).filter(Boolean).join(' • ')
-      : '';
-    return `${label} ${date} — ${first3}`;
-  });
-};
-
-export default function FloatingChat({
-  apiBaseUrl, planId ,dayCount, onNavigateToDay,
-  startDate, endDate, itineraryData, onPatchItinerary,
-  fabBottom, fabRight,
-}: Props) {
-
-  // UI state
-  const [visible, setVisible] = useState(false);
-  const [messages, setMessages] = useState<Msg[]>([
-    { id: 'sys-hello', role: 'assistant', content: 'สวัสดีค่ะ ฉันคือผู้ช่วยทริป ✈️' },
-  ]);
-  const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
-  const [errorText, setErrorText] = useState<string | null>(null);
-
-  // เก็บ raw LLM ล่าสุดไว้ส่งให้ /ai/chat ตอนขอ "แก้แผน"
-  const [latestRawItinerary, setLatestRawItinerary] = useState<any | null>(
-    isRawLLMItinerary(itineraryData) ? itineraryData : null
-  );
-
-  // list & fab
-  const listRef = useRef<FlatList<Msg>>(null);
-  const insets = useSafeAreaInsets();
-  const baseBottom = (fabBottom ?? 24) + insets.bottom;
-  const bottomAnim = useRef(new Animated.Value(baseBottom)).current;
-
-  useEffect(() => { if (visible) listRef.current?.scrollToEnd({ animated: true }); }, [messages.length, visible]);
-  useEffect(() => { Animated.timing(bottomAnim, { toValue: baseBottom, duration: 0, useNativeDriver: false }).start(); }, [baseBottom]);
-
-  useEffect(() => {
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSub = Keyboard.addListener(showEvt, (e: any) => {
-      const kb = e?.endCoordinates?.height ?? 0;
-      Animated.timing(bottomAnim, { toValue: baseBottom + kb + 12, duration: Platform.OS === 'ios' ? 250 : 150, useNativeDriver: false }).start();
-    });
-    const hideSub = Keyboard.addListener(hideEvt, () => {
-      Animated.timing(bottomAnim, { toValue: baseBottom, duration: Platform.OS === 'ios' ? 250 : 150, useNativeDriver: false }).start();
-    });
-    return () => { showSub.remove(); hideSub.remove(); };
-  }, [bottomAnim, baseBottom]);
-
-  const clampIndex = (i: number) => Math.max(0, Math.min(i, dayCount - 1));
-
-  // เลือก itinerary_data ที่จะส่งให้ /ai/chat (อยากได้ "raw" ก่อน)
-  const pickRawItineraryForServer = (): any | null => {
-    if (isRawLLMItinerary(itineraryData)) return itineraryData;
-    if (latestRawItinerary) return latestRawItinerary;
-    return null;
-  };
-
-  // build payload with history
-  const makeChatPayload = (lastUserText: string) => {
-    const compactHistory = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .slice(-10)
-      .concat({ id: `u-${Date.now()}`, role: 'user' as const, content: lastUserText });
-
-    return {
-      start_date: ddmmyyyy(startDate),
-      end_date: ddmmyyyy(endDate),
-      messages: compactHistory.map(({ role, content }) => ({ role, content })),
-      itinerary_data: pickRawItineraryForServer(),
-    };
-  };
-
-  // ---- helper: แปลง raw itinerary → TripScheduleIn[] สำหรับบันทึกลง DB ----
-const buildDBPayloadFromRaw = (raw: any, planId: number): TripScheduleIn[] => {
-  if (!raw || !Array.isArray(raw.itinerary)) return [];
-  const rows: TripScheduleIn[] = [];
-
-  for (const day of raw.itinerary) {
-    const dateStr = day?.date;
-    if (!dateStr) continue;
-    const list = Array.isArray(day?.schedule) ? day.schedule : [];
-    for (const s of list) {
-      const t = (s?.time || '').trim();              // "HH:mm"
-      const hhmmss = /^\d{1,2}:\d{2}$/.test(t) ? `${t}:00` : t || "09:00:00";
-      const activity = (s?.activity || '').trim();
-      if (!activity) continue;
-
-      rows.push({
-        plan_id: planId,
-        date: dayjs(dateStr).format('YYYY-MM-DD'),
-        time: hhmmss,
-        activity,
-        description: '',
-      });
-    }
-  }
-  return rows;
-};
-  // ---- helper: บันทึกลง DB ----
-const saveSchedulesToDB = async (plan_id: number, payload: ItineraryPayload) => {
-  const token = await AsyncStorage.getItem('access_token');
-  const headers: any = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  try {
-    await axios.post(
-      `http://192.168.1.45:8000/trip_schedule`,
-      {
-        plan_id,
-        payload,
-      },
-      { headers, timeout: 15000 }
-    );
-
-    return { ok: true, inserted: 1, mode: 'single_json' };
-  } catch (err) {
-    console.error("Failed to save itinerary:", err);
-    return { ok: false, inserted: 0, mode: 'single_json' };
-  }
-};
-
-
-  const sendToAI = async (userText: string) => {
-    const token = await AsyncStorage.getItem('access_token');
-    const headers: any = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `http://192.168.1.45:8000/ai/chat`;
-    const payload = makeChatPayload(userText);
-    const res = await axios.post(url, payload, { headers, timeout: 30000 });
-    return res.data as { reply?: string; action?: { type: string; day?: number }; itinerary?: any };
-  };
-
-  const pushAssistant = (content: string) => {
-    setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content }]);
-  };
-
-
-  const savingRef = useRef(false);
-
-  const applyItinerary = async (raw: any) => {
-    if (savingRef.current) return;   // กันจิ้มซ้ำ/StrictMode
-    savingRef.current = true;
-    try {
-      const items = buildDBPayloadFromRaw(raw, planId);
-      const result = await saveSchedulesToDB(items);
-
-      if (result.ok) {
-        pushAssistant(`ใส่ลงแผนและบันทึกลงฐานข้อมูลแล้ว (${result.inserted} รายการ) ✅`);
-      } else {
-        pushAssistant(`ใส่ลงแผนสำเร็จ แต่บันทึกฐานข้อมูลไม่ครบ (${result.inserted}/${items.length})`);
-      }
-    } catch (e) {
-        console.error('applyItinerary error', e);
-        pushAssistant('เกิดข้อผิดพลาดระหว่างบันทึกลงฐานข้อมูล');
-    } finally {
-      savingRef.current = false;
-    }
-  };
-
-  const onSend = async (textFromQuick?: string) => {
-    const text = (textFromQuick ?? input).trim();
-    if (!text || sending) return;
-
-    setErrorText(null);
-    setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: 'user', content: text }]);
-    if (!textFromQuick) setInput('');
-
-    // client-side intent
-    const direct = parseDayIntent(text);
-    if (direct) {
-      const idx = clampIndex(direct - 1);
-      pushAssistant(`ไปวันที่ ${direct} ให้แล้วค่ะ`);
-      onNavigateToDay(idx);
-      setVisible(false);
+  // ฟังก์ชันหลักเมื่อกดปุ่ม
+  const handlePress = async () => {
+    if (isOpen) {
+      // ถ้าเปิดอยู่ ให้ปิด
+      setIsOpen(false);
+      setRouteInfo(null);
+      setErrorMsg(null);
       return;
     }
 
+    // ถ้าปิดอยู่ ให้เปิดและเริ่มคำนวณ
+    setIsOpen(true);
+    await calculateRoute();
+  };
+
+  const calculateRoute = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    setRouteInfo(null);
+
     try {
-      setSending(true);
-      const result = await sendToAI(text);
-
-      // server-side intent
-      if (result?.action?.type === 'goto_day' && result.action.day) {
-        const d = Number(result.action.day);
-        const idx = clampIndex(d - 1);
-        pushAssistant(result.reply ?? `ไปวันที่ ${d} นะคะ`);
-        onNavigateToDay(idx);
-        setVisible(false);
-        return;
+      // 1. ขอ Permission และหาตำแหน่งปัจจุบัน
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        throw new Error('Permission to access location was denied');
       }
 
-      if (result?.itinerary) {
-        // เก็บ raw LLM ไว้ใช้ต่อ
-        setLatestRawItinerary(result.itinerary);
-       setMessages(prev => [...prev, { id: `it-${Date.now()}`, role: 'assistant', kind: 'itinerary', itinerary: result.itinerary, content: result.reply ?? 'นี่คือร่างแผนทริปค่ะ' }]);
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const origin = `${currentLocation.coords.latitude},${currentLocation.coords.longitude}`;
 
-      } else {
-        pushAssistant(result?.reply ?? 'รับทราบค่ะ');
+      // 2. ดึงข้อมูล Itinerary (Plan)
+      const token = await AsyncStorage.getItem('access_token');
+      const res = await axios.get(`${apiBaseUrl}/trip_schedule/${planId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const itineraryData = res.data?.payload?.itinerary;
+      if (!itineraryData || !Array.isArray(itineraryData)) {
+        throw new Error('ไม่พบข้อมูลตารางการเดินทาง');
       }
-    } catch (e: any) {
-      console.error('chat error:', e?.response?.data ?? e?.message ?? e);
-      setErrorText(
-        e?.code === 'ECONNABORTED'
-          ? 'การเชื่อมต่อช้าเกินไป ลองใหม่อีกครั้งนะคะ'
-          : 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบเครือข่ายหรือ CORS'
+
+      // 3. หา Destination (กิจกรรมถัดไปที่มี Location)
+      const target = findNextLocation(itineraryData);
+      
+      if (!target) {
+        throw new Error('ไม่พบกิจกรรมถัดไปที่มีสถานที่ระบุไว้');
+      }
+
+      setNextActivity(target);
+
+      // 4. เรียก API Route Summarize
+      const destination = `${target.lat},${target.lng}`;
+      console.log(`Routing: ${origin} -> ${destination} (${target.activity})`);
+
+      const route = {
+        start : origin,
+        goal : destination,
+        start_time : dayjs().format('YYYY-MM-DDTHH:mm:ss') 
+      }
+
+     const routeRawRes = await axios.get(`${apiBaseUrl}/route`,
+      {
+        params:  route ,
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+      
+      // เช็คว่าได้เส้นทางมาไหม
+      if (!routeRawRes.data || routeRawRes.data.error) {
+          throw new Error('ไม่พบเส้นทาง หรือ API มีปัญหา');
+      }
+
+      
+      // 3. ✅ ส่งผลลัพธ์ที่ได้ไปให้ AI สรุป (POST /route/summarize)
+      // ต้องส่งให้ตรงกับ Schema: { route: Dict }
+      const summarizeRes = await axios.post(`${apiBaseUrl}/route/summarize`, 
+        { route: routeRawRes.data }, // ส่ง JSON ก้อนใหญ่ไปใส่ใน key 'route'
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      pushAssistant('ขอโทษค่ะ เกิดข้อผิดพลาดในการเชื่อมต่อ');
+
+      setRouteInfo(summarizeRes.data);
+
+    } catch (err: any) {
+      console.error("Route Error:", err);
+      setErrorMsg(err.message || "เกิดข้อผิดพลาดในการคำนวณเส้นทาง");
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   };
 
-  const quicks = useMemo(() => {
-    const arr: string[] = [];
-    const days = Math.min(dayCount, 5);
-    for (let i = 1; i <= days; i++) arr.push(`ไปวันที่ ${i}`);
-    arr.push('สร้างแผนใหม่ให้หน่อย', 'แก้วัน 2 ให้ไปวัดตอนเช้า');
-    return arr;
-  }, [dayCount]);
+  // Logic การหากิจกรรมถัดไปตามโจทย์
+  const findNextLocation = (itinerary: ItineraryDay[]): ScheduleItem | null => {
+    const now = dayjs(); // เวลาปัจจุบัน
+    // const now = dayjs("2025-12-11 09:00"); // ปลดล็อกเพื่อ Test เวลา
+
+    // แปลง Itinerary ให้เป็น List เดียวที่เรียงตามเวลา เพื่อหาง่ายๆ
+    let allActivities: (ScheduleItem & { fullDateTime: dayjs.Dayjs })[] = [];
+
+    itinerary.forEach(day => {
+      day.schedule.forEach(item => {
+        // รวม Date + Time เป็น Object เดียว
+        const itemDateTime = dayjs(`${day.date} ${item.time}`, "YYYY-MM-DD HH:mm");
+        if (itemDateTime.isValid()) {
+          allActivities.push({ ...item, fullDateTime: itemDateTime });
+        }
+      });
+    });
+
+    // เรียงตามเวลา
+    allActivities.sort((a, b) => a.fullDateTime.diff(b.fullDateTime));
+
+    // วนลูปหาตัวแรกที่ เวลา >= ปัจจุบัน และ need_location = true
+    for (const item of allActivities) {
+      // เงื่อนไข 1: เวลาต้องเป็นอนาคต หรือ ปัจจุบัน (เผื่อเลทนิดหน่อยได้ เช่น -10 นาที)
+      // เงื่อนไข 2: ต้องมีพิกัด (lat, lng)
+      // เงื่อนไข 3: need_location ต้องเป็น true
+      if (item.fullDateTime.isAfter(now.subtract(10, 'minute')) && item.need_location && item.lat && item.lng) {
+        return item;
+      }
+    }
+
+    return null;
+  };
 
   return (
-    <>
-      {/* FAB */}
-      <Animated.View
-        pointerEvents={visible ? 'none' : 'auto'}
-        style={[
-          styles.fabContainer,
-          { right: fabRight ?? 16, bottom: bottomAnim, opacity: visible ? 0 : 1 },
-        ]}
-      >
-        <TouchableOpacity style={styles.fab} onPress={() => setVisible(true)} activeOpacity={0.85}>
-          <Text style={styles.fabText}>💬</Text>
-        </TouchableOpacity>
-      </Animated.View>
-
-      {/* Overlay */}
-      {visible && (
-        <View style={styles.overlay} pointerEvents="auto">
-          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setVisible(false)} />
-          <View style={styles.sheet}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.title}>ผู้ช่วยทริป</Text>
-              <TouchableOpacity onPress={() => setVisible(false)}>
-                <Text style={styles.close}>ปิด</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Quick actions */}
-            <View style={styles.quickRow}>
-              <FlatList
-                data={quicks}
-                keyExtractor={(t, i) => `${i}-${t}`}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 12 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.quickChip} onPress={() => onSend(item)}>
-                    <Text style={styles.quickText}>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-
-            {/* Messages */}
-            <FlatList
-              ref={listRef}
-              data={messages}
-              keyExtractor={(m) => m.id}
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: 12 }}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => {
-                if (item.kind === 'itinerary' && item.itinerary) {
-                  const lines = summarizeItinerary(item.itinerary);
-                  return (
-                    <View style={[styles.bubble, styles.bubbleBot]}>
-                      {!!item.content && (
-                        <Text style={[styles.bubbleText, { marginBottom: 6 }]}>{item.content}</Text>
-                      )}
-
-                      {lines.slice(0, 8).map((line, idx) => (
-                        <TouchableOpacity
-                          key={idx}
-                          style={{ paddingVertical: 4 }}
-                          onPress={() => { onNavigateToDay(idx); setVisible(false); }}
-                        >
-                          <Text style={styles.itinLine}>• {line}</Text>
-                        </TouchableOpacity>
-                      ))}
-
-                      {/* ปุ่มกดใส่ลงแผน + ดูวันแรก */}
-                      <View style={styles.ctaRow}>
-                        <TouchableOpacity
-                          style={[styles.ctaBtn, styles.ctaPrimary]}
-                          onPress={() => applyItinerary(item.itinerary)}
-                        >
-                          <Text style={styles.ctaTextPrimary}>ใส่ลงแผน</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[styles.ctaBtn, styles.ctaSecondary]}
-                          onPress={() => { onNavigateToDay(0); setVisible(false); }}
-                        >
-                          <Text style={styles.ctaTextSecondary}>ดูวันแรก</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                }
-
-
-                return (
-                  <View
-                    style={[
-                      styles.bubble,
-                      item.role === 'user' ? styles.bubbleUser : styles.bubbleBot,
-                    ]}
-                  >
-                    <Text style={styles.bubbleText}>{item.content}</Text>
-                  </View>
-                );
-              }}
-              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-            />
-
-            {!!errorText && (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{errorText}</Text>
-              </View>
-            )}
-
-            {/* Input */}
-            <View style={styles.inputRow}>
-              <TextInput
-                value={input}
-                onChangeText={setInput}
-                placeholder="พิมพ์ข้อความ... เช่น ไปวันที่ 2 หรือ แก้วัน 2 ให้ไปวัดตอนเช้า"
-                placeholderTextColor="#888"
-                style={styles.input}
-                editable={!sending}
-                onSubmitEditing={() => onSend()}
-                returnKeyType="send"
-              />
-              <TouchableOpacity onPress={() => onSend()} disabled={sending} style={styles.sendBtn}>
-                {sending ? <ActivityIndicator /> : <Text style={styles.sendText}>ส่ง</Text>}
-              </TouchableOpacity>
-            </View>
+    <View style={styles.container}>
+      {/* หน้าต่างแสดงผล (Bubble) */}
+      {isOpen && (
+        <View style={styles.bubbleCard}>
+          <View style={styles.bubbleHeader}>
+            <Text style={styles.bubbleTitle}>เส้นทางถัดไป 📍</Text>
+            <TouchableOpacity onPress={() => setIsOpen(false)}>
+              <Ionicons name="close" size={20} color="#666" />
+            </TouchableOpacity>
           </View>
+
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#FF6B6B" />
+              <Text style={styles.loadingText}>กำลังคำนวณเส้นทาง...</Text>
+            </View>
+          ) : errorMsg ? (
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          ) : routeInfo && nextActivity ? (
+            <View style={styles.infoContainer}>
+              <Text style={styles.targetLabel}>มุ่งหน้าสู่:</Text>
+              <Text style={styles.targetName} numberOfLines={1}>
+                {nextActivity.specific_location_name || nextActivity.activity}
+              </Text>
+              <Text style={styles.targetTime}>เวลา: {nextActivity.time}</Text>
+              
+              <View style={styles.divider} />
+              
+              {/* ✅ แก้ไขส่วนแสดงผล Route ให้รองรับ Array แบบใหม่ */}
+              {Array.isArray(routeInfo) && routeInfo.length > 0 ? (
+                <View>
+                  {/* แสดงหัวข้อ Option แรก (เช่น Fastest) */}
+                  <Text style={[styles.routeDetail, { fontWeight: 'bold', color: '#2563eb', marginBottom: 4 }]}>
+                     {routeInfo[0].title}
+                  </Text>
+
+                  {/* แสดงระยะทางและค่าโดยสาร */}
+                  <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+                      <Text style={[styles.routeDetail, {fontSize: 12}]}>{routeInfo[0].distance}</Text>
+                      <Text style={[styles.routeDetail, {fontSize: 12}]}>{routeInfo[0].fare}</Text>
+                  </View>
+
+                  <View style={{ height: 6 }} />
+
+                  {/* แสดงขั้นตอนการเดินทาง 3 บรรทัดแรก */}
+                  {routeInfo[0].detail.slice(0, 3).map((step: string, idx: number) => (
+                    <Text key={idx} style={[styles.routeDetail, { fontSize: 12, color: '#555' }]} numberOfLines={1}>
+                      {step}
+                    </Text>
+                  ))}
+                  
+                  {/* ถ้ามีมากกว่า 3 ขั้นตอน ให้มี ... */}
+                  {routeInfo[0].detail.length > 3 && (
+                    <Text style={{ fontSize: 10, color: '#999', textAlign: 'center' }}>...</Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.infoText}>ไม่พบข้อมูลเส้นทาง</Text>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.infoText}>ไม่พบกิจกรรมถัดไปที่ต้องเดินทาง</Text>
+          )}
         </View>
       )}
-    </>
+
+      {/* ปุ่ม Floating Button */}
+      <TouchableOpacity 
+        style={[styles.fab, isOpen ? styles.fabActive : null]} 
+        onPress={handlePress}
+        activeOpacity={0.8}
+      >
+        <Ionicons 
+          name={isOpen ? "map" : "navigate"} 
+          size={28} 
+          color="white" 
+        />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // FAB
-  fabContainer: { position: 'absolute', zIndex: 9999, elevation: 12 },
+  container: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    alignItems: 'flex-end', // จัดให้ Bubble อยู่ชิดขวาตรงกับปุ่ม
+    zIndex: 9999, // ให้ลอยอยู่บนสุด
+  },
   fab: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#111827',
-    justifyContent: 'center', alignItems: 'center',
-    elevation: 12, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 4 },
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FF6B6B', // สีปุ่มหลัก
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  fabText: { fontSize: 24, color: '#fff' },
-
-  // Overlay
-  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 9998, elevation: 9998, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: {
-    width: '100%', height: SHEET_HEIGHT, backgroundColor: '#fff',
-    borderTopLeftRadius: 16, borderTopRightRadius: 16, overflow: 'hidden',
+  fabActive: {
+    backgroundColor: '#FF4757',
   },
-  header: {
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb',
-    flexDirection: 'row', justifyContent: 'space-between',
+  bubbleCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16, // ระยะห่างจากปุ่ม FAB
+    width: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  title: { fontSize: 16, fontWeight: '600', color: '#111' },
-  close: { color: '#2563eb', fontWeight: '600' },
-
-  quickRow: { paddingVertical: 8 },
-  quickChip: {
-    backgroundColor: '#e5e7eb', paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 16, marginHorizontal: 4,
+  bubbleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  quickText: { color: '#111', fontSize: 14 },
-
-  bubble: { padding: 10, borderRadius: 12, marginVertical: 4, maxWidth: '90%' },
-  bubbleUser: { backgroundColor: '#e5e7eb', alignSelf: 'flex-end' },
-  bubbleBot: { backgroundColor: '#eef2ff', alignSelf: 'flex-start' },
-  bubbleText: { fontSize: 14, color: '#111' },
-  itinLine: { fontSize: 14, color: '#111' },
-
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 12, gap: 8, borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb',
+  bubbleTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
   },
-  input: {
-    flex: 1, borderWidth: 1, borderColor: '#e5e7eb',
-    borderRadius: 10, padding: 10, color: '#111',
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
   },
-  sendBtn: { paddingHorizontal: 16, justifyContent: 'center' },
-  sendText: { color: '#2563eb', fontWeight: '700' },
-
-  errorBox: { padding: 8, backgroundColor: '#fee2e2', borderRadius: 6, margin: 8 },
-  errorText: { color: '#991b1b', fontSize: 12 },
-
-  ctaRow: {
-  flexDirection: 'row',
-  gap: 8,
-  marginTop: 10,
-},
-ctaBtn: {
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-  borderRadius: 10,
-},
-ctaPrimary: {
-  backgroundColor: '#2563eb',
-},
-ctaSecondary: {
-  backgroundColor: '#F1F5F9',
-},
-ctaTextPrimary: {
-  color: '#fff',
-  fontWeight: '700',
-},
-ctaTextSecondary: {
-  color: '#111',
-  fontWeight: '600',
-},
-
+  loadingText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#666',
+  },
+  infoContainer: {
+    gap: 4,
+  },
+  targetLabel: {
+    fontSize: 12,
+    color: '#888',
+  },
+  targetName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+  },
+  targetTime: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#eee',
+    marginVertical: 8,
+  },
+  routeDetail: {
+    fontSize: 14,
+    color: '#444',
+    marginBottom: 2,
+  },
+  bold: {
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  infoText: {
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'center',
+  }
 });
