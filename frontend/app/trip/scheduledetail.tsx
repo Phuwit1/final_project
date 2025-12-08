@@ -96,10 +96,43 @@ export default function TripDetail() {
 
   const confirmPlan = async () => {
     const changed = JSON.stringify(schedule) !== JSON.stringify(editedSchedule);
-    if (!changed) {
-        Alert.alert("ไม่มีการแก้ไข", "แผนถูกยืนยันเรียบร้อยแล้ว ✅");
+    const planToProcess = changed ? editedSchedule : schedule;
+
+    try {
+        setSaving(true); // เปิด Loading
+        const token = await AsyncStorage.getItem('access_token');
+        const headers = { 
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` })
+        };
+
+        // 2. เรียก API เพื่อขอพิกัด (get_location)
+        // ส่ง planToProcess ไป ไม่ใช่ค่า boolean
+        const locationRes = await axios.post(`${API_URL}/get_location/`, 
+            { itinerary_data: planToProcess }, 
+            { headers }
+        );
+        
+        // 3. รับข้อมูลที่เติมพิกัดแล้วจาก Backend
+        const updatedPayload = locationRes.data.itinerary_data; 
+
+        // 4. บันทึกข้อมูลที่สมบูรณ์ลง Database (ใช้ PUT /trip_schedule)
+        await axios.put(`${API_URL}/trip_schedule/${planId}`, 
+            { 
+                plan_id: planId, 
+                payload: updatedPayload // ส่งตัวที่มีพิกัดแล้วไปบันทึก
+            }, 
+            { headers }
+        );
+
+        Alert.alert("สำเร็จ", "บันทึกแผนและอัปเดตพิกัดเรียบร้อยแล้ว ✅");
         router.replace({ pathname: "/(tabs)/mytrip" });
-        return;
+
+    } catch (error) {
+        console.error("Error confirming plan:", error);
+        Alert.alert("ผิดพลาด", "ไม่สามารถบันทึกแผนได้");
+    } finally {
+        setSaving(false);
     }
   };
 
@@ -132,7 +165,6 @@ export default function TripDetail() {
           start_date: toDDMMYYYY(startDate),
           end_date: toDDMMYYYY(endDate),
           cities: currentSelectedCities, 
-          // ส่ง prompt บอก AI ว่าเป็นการ Re-plan ตามความต้องการใหม่
           text: `${newNote}`,
           itinerary_data: editedSchedule
         }, 
@@ -141,9 +173,14 @@ export default function TripDetail() {
       
       const revised = res.data;
 
+       const locationRes = await axios.post(`${API_URL}/get_location/`, 
+            { itinerary_data: revised }, 
+            { headers }
+        );
+
       // บันทึกผลลัพธ์ใหม่ลง DB
       await axios.put(`${API_URL}/trip_schedule/${planId}`, 
-        { plan_id: planId, payload: revised }, 
+        { plan_id: planId, payload: locationRes }, 
         { headers }
       );
 
@@ -306,6 +343,7 @@ export default function TripDetail() {
               >
                 <Text style={styles.modalBtnText}>ยกเลิก</Text>
               </TouchableOpacity>
+
               <TouchableOpacity 
                 style={[styles.modalBtn, styles.saveBtn]} 
                 onPress={handleRegenerate}
