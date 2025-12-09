@@ -5,7 +5,7 @@ from datetime import datetime, date as D, time as T
 import json
 from typing import Any
 from dependencies import get_db, get_current_user
-from schemas import TripPlan, TripSchedule, TripScheduleDocIn, TripScheduleBulkRequest
+from schemas import TripPlan, TripSchedule, TripScheduleDocIn, TripScheduleBulkRequest, TripPlanUpdate
 
 router = APIRouter(tags=["Plan & Schedule"])
 
@@ -95,6 +95,24 @@ async def create_trip_plan(trip_plan: TripPlan, db: Prisma = Depends(get_db), cu
 @router.delete("/trip_plan/{plan_id}")
 async def delete_trip_plan(plan_id: int, db: Prisma = Depends(get_db)):
     return await db.tripplan.delete(where={"plan_id": plan_id})
+
+
+@router.put("/trip_plan/{plan_id}")
+async def update_trip_plan(plan_id: int, trip_plan: TripPlanUpdate, db: Prisma = Depends(get_db)):
+    try:
+        # ดึงเฉพาะค่าที่ส่งมา (exclude_unset=True) เพื่อไม่ให้ค่าอื่นโดนทับด้วย null
+        data = trip_plan.model_dump(exclude_unset=True)
+        
+        updated_plan = await db.tripplan.update(
+            where={"plan_id": plan_id},
+            data=data
+        )
+        return updated_plan
+    
+    except Exception as e:
+        print(f"Error updating trip plan: {e}")
+        # แนะนำให้ return status code ที่ถูกต้อง
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Trip Schedule ---
 EPOCH_DATE = D(1970, 1, 1)

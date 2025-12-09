@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Share, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, TextInput ,StyleSheet, Image, TouchableOpacity, Share, Alert, ActivityIndicator, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -23,9 +23,10 @@ interface TripCardProps {
   tripId?: string;
   groupcode?: string;
   onGroupCreated?: (newGroupData: any) => void;
+  onNameUpdate?: (newName: string) => void;
 }
 
-const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, planId,tripId ,onGroupCreated}) => {
+const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, planId,tripId ,onGroupCreated, onNameUpdate}) => {
     const navigation = useNavigation<any>();
     const router = useRouter();
     console.log('planId from props:', planId);
@@ -34,6 +35,12 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
 
     const [loading, setLoading] = useState(false);
     const [groupCode, setGroupCode] = useState<string | null>(null);
+
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [tripName, setTripName] = useState(name); // เก็บชื่อปัจจุบัน
+    const [tempName, setTempName] = useState(name); // เก็บชื่อขณะพิมพ์
+    const [savingName, setSavingName] = useState(false);
+
     const hasGroup = !!tripId || !!groupCode;
     console.log("groupCode group:", groupCode);
     const [isShareModalVisible, setShareModalVisible] = useState(false);
@@ -131,10 +138,84 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
     }
   };
 
+  const handleEditname = async () => {
+    if (!tempName.trim()) {
+      Alert.alert("Error", "ชื่อทริปห้ามว่าง");
+      return;
+    }
+    
+    // ถ้าชื่อเหมือนเดิมก็ไม่ต้องยิง API
+    if (tempName === tripName) {
+        setIsEditingName(false);
+        return;
+    }
+
+    try {
+
+      setSavingName(true);
+      const token = await AsyncStorage.getItem('access_token');
+
+      await axios.put(`${API_URL}/trip_plan/${planId}`, 
+        { name_group: tempName }, // ส่งชื่อใหม่ไป (เช็คชื่อ field ใน Backend ด้วยว่าใช้ 'name' หรือ 'name_group')
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setTripName(tempName);
+      setIsEditingName(false);
+      if (onNameUpdate) onNameUpdate(tempName);
+
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "ไม่สามารถแก้ไขชื่อทริปได้");
+      setTempName(tripName); // Revert กลับ
+    } finally {
+      setSavingName(false);
+    }
+
+  };
+
+  const handleCancelEdit = () => {
+    setTempName(tripName);
+    setIsEditingName(false);
+  };
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.tripName}>{name}</Text>
+        <View style={styles.titleRow}>
+            {isEditingName ? (
+                // --- โหมดแก้ไข ---
+                <View style={styles.editContainer}>
+                    <TextInput
+                        style={styles.nameInput}
+                        value={tempName}
+                        onChangeText={setTempName}
+                        autoFocus
+                    />
+                    {savingName ? (
+                        <ActivityIndicator size="small" color="#007AFF" />
+                    ) : (
+                        <View style={styles.actionIcons}>
+                            <TouchableOpacity onPress={handleEditname}>
+                                <Ionicons name="checkmark-circle" size={24} color="#28a745" />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={handleCancelEdit}>
+                                <Ionicons name="close-circle" size={24} color="#FF3B30" />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+            ) : (
+                // --- โหมดปกติ ---
+                <View style={styles.displayContainer}>
+                    <Text style={styles.tripName} numberOfLines={1}>{tripName}</Text>
+                    <TouchableOpacity onPress={() => setIsEditingName(true)} style={styles.editIcon}>
+                        <Ionicons name="pencil" size={16} color="#666" />
+                    </TouchableOpacity>
+                </View>
+            )}
+        </View>
+
          {!hasGroup ? (
           <TouchableOpacity
             style={styles.createGroupButton}
@@ -235,9 +316,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  tripName: {
+  titleRow: {
+    flex: 1, // ให้กินพื้นที่ส่วนใหญ่
+    marginRight: 8,
+  },
+  displayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  tripName: { 
+    fontSize: 18, 
+    fontWeight: 'bold',
+    flexShrink: 1, // ให้ตัดคำถ้าชื่อยาวเกิน
+  },
+  editIcon: {
+    padding: 4,
+  },
+  
+  // Styles ตอนกำลังพิมพ์
+  editContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nameInput: {
+    flex: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#007AFF',
     fontSize: 18,
     fontWeight: 'bold',
+    paddingVertical: 2,
+    color: '#333',
+  },
+  actionIcons: {
+    flexDirection: 'row',
+    gap: 8,
   },
   status: {
     fontSize: 14,
