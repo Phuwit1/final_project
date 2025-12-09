@@ -52,7 +52,9 @@ class TripPlan(BaseModel):
     end_plan_date: datetime
     day_of_trip: Optional[int] = None
     trip_id: Optional[int] = None
-    
+
+class TripPlanUpdate(BaseModel):
+    name_group: Optional[str] = None
     
 class TripSchedule(BaseModel):
     plan_id: int
