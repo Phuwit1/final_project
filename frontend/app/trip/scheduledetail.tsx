@@ -10,6 +10,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '@/api.js'
+import dayjs from 'dayjs';
+import 'dayjs/locale/th';
+
+dayjs.locale('th');
 
 type City = {
   id: number;
@@ -33,6 +37,7 @@ export default function TripDetail() {
   
 
   const [isAddModalVisible, setAddModalVisible] = useState(false);
+  const [isCommentModalVisible, setIsCommentModalVisible] = useState(false);
   const [newNote, setNewNote] = useState("");
   
   const selectedCities = citiesParam ? JSON.parse(citiesParam  as string) : [];
@@ -220,13 +225,20 @@ export default function TripDetail() {
             <Text style={styles.addButtonText}>แก้ไขใหม่</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: '#ff4c73ff' }]} // สีม่วง
+            onPress={() => setIsCommentModalVisible(true)}
+          >
+            <Text style={styles.addButtonText}> Comment</Text>
+          </TouchableOpacity>
+
+          
+
           {/* รายการวัน */}
           {editedSchedule.itinerary.map((item: any, index: number) => {
             const isSelected = selectedDayIndex === index;
             // แปลงวันที่เป็นรูปแบบสั้นๆ เช่น 2025-10-12 -> 12/10
-            const dateParts = item.date ? item.date.split('-') : []; 
-            const shortDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}` : item.date;
-
+            const shortDate = item.date ? dayjs(item.date).format('D MMM') : "";
             return (
               <TouchableOpacity
                 key={index}
@@ -248,7 +260,7 @@ export default function TripDetail() {
       {/* --- 2. ส่วนแสดงรายละเอียดกิจกรรม (Body) --- */}
       <View style={styles.bodyContainer}>
         <Text style={styles.dayTitle}>
-          ✨ {currentDay.day} - {currentDay.date}
+          ✨ {currentDay.day} - {dayjs(currentDay.date).format('D MMMM YYYY')}
         </Text>
         
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
@@ -282,7 +294,7 @@ export default function TripDetail() {
       {/* --- 3. ปุ่มยืนยัน (Footer) --- */}
       <View style={styles.footerContainer}>
         <TouchableOpacity onPress={confirmPlan} style={styles.confirmButton}>
-          <Text style={styles.confirmButtonText}>✅ ยืนยันแผน</Text>
+          <Text style={styles.confirmButtonText}>ยืนยันแผน</Text>
         </TouchableOpacity>
       </View>
 
@@ -349,6 +361,32 @@ export default function TripDetail() {
                 onPress={handleRegenerate}
               >
                 <Text style={[styles.modalBtnText, { color: 'white' }]}>แก้ไข</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={isCommentModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsCommentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>คำแนะนำจาก AI</Text>
+            <ScrollView style={{ maxHeight: 400, marginVertical: 10 }}>
+              <Text style={{ fontSize: 16, color: '#333', lineHeight: 24 }}>
+                {editedSchedule?.comments || "ไม่มีคำแนะนำเพิ่มเติม"}
+              </Text>
+            </ScrollView>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.saveBtn]} 
+                onPress={() => setIsCommentModalVisible(false)}
+              >
+                <Text style={[styles.modalBtnText, { color: 'white' }]}>ปิด</Text>
               </TouchableOpacity>
             </View>
           </View>
