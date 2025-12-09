@@ -171,7 +171,7 @@ export default function CurrentCard() {
     );
   }
 
-  const isEnded = dayjs().isAfter(dayjs(currentTrip.end_plan_date));
+  const isEnded = dayjs().isAfter(dayjs(currentTrip.end_plan_date).add(1, 'day'));
 
   const getTripStatusLabel = () => {
     if (!currentTrip) return "";
@@ -210,7 +210,7 @@ export default function CurrentCard() {
 
         <View style={styles.rightHeader}>
 
-                {getTripStatusLabel()}
+              {getTripStatusLabel()}
  
             {isEnded && (
             <TouchableOpacity style={styles.smallSakuraBtn} onPress={handleCreateTrip}>
