@@ -25,6 +25,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { API_URL } from '@/api.js'
 import { Ionicons } from '@expo/vector-icons';
+import { useSQLiteContext } from 'expo-sqlite';
 
 
 type Trip = {
@@ -66,6 +67,8 @@ const formatTripDateRange = (startStr: string, endStr: string): string => {
 };
 
 export default function TripListScreen() {
+  const db = useSQLiteContext();
+
   const [search, setSearch] = useState('');
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,8 +92,8 @@ export default function TripListScreen() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          timeout: 10000, // 10 seconds timeout
         });
-
       if (Array.isArray(res.data)) {
         setTrips(res.data);
       } else {
@@ -101,8 +104,22 @@ export default function TripListScreen() {
 
     setLoading(false);
       } catch (err: any) {
-        setError(err.response?.data?.detail || 'Failed to load trips');
-        setLoading(false);
+        console.log('Online fetch failed, trying SQLite...', err.message);
+        try{
+          const offlineTrips = await db.getAllAsync('SELECT * FROM TripPlan');
+          if (offlineTrips.length > 0 && Array.isArray(offlineTrips)) {
+            setTrips(offlineTrips as Trip[]);
+            setError(''); // ล้าง error เพราะเรามีข้อมูลออฟไลน์มาโชว์แล้ว
+          } else {
+            setError('ไม่สามารถโหลดข้อมูลได้ และไม่มีข้อมูลสำรองในเครื่อง');
+          }
+        }
+        catch(sqliteErr) {
+          setError('เกิดข้อผิดพลาดในการเข้าถึงฐานข้อมูลในเครื่อง');
+        }
+        finally {
+          setLoading(false);   
+        }
       }
     };
 
@@ -126,11 +143,25 @@ export default function TripListScreen() {
               const token = await AsyncStorage.getItem('access_token');
               await axios.delete(`${API_URL}/trip_plan/${planId}`, {
                 headers: { Authorization: `Bearer ${token}` },
+                timeout: 10000,
               });
+            } catch (error: any) {
+              if (error.response) {
+                console.log("Server rejected delete:", error.response.status);
+                Alert.alert("ลบไม่ได้", `Server ปฏิเสธการลบ (Code: ${error.response.status})`);
+
+                return; 
+              }
+              try {
+                await db.runAsync('DELETE FROM TripPlan WHERE plan_id = ?', [planId]);
+              }
+              catch (error) {
+                Alert.alert("Error", "ไม่สามารถลบทริปได้");
+              }
+            }
+            finally {
               // ลบออกจาก State ทันทีเพื่อให้ UI อัปเดต
               setTrips(prev => prev.filter(t => t.plan_id !== planId));
-            } catch (error) {
-              Alert.alert("Error", "ไม่สามารถลบทริปได้");
             }
           }
         }
@@ -149,12 +180,11 @@ export default function TripListScreen() {
     const durationDays = Math.ceil(
       (new Date(item.end_plan_date).getTime() - new Date(item.start_plan_date).getTime()) /
         (1000 * 60 * 60 * 24)
-    );
+    ) + 1; // รวมวันเริ่มต้นด้วย
 
     const formattedDate = formatTripDateRange(item.start_plan_date, item.end_plan_date);
     
     const memberCount = item.tripGroup?.members?.length || 1;
-
     return (
       <View style={styles.cardContainer}>
         <TouchableOpacity 

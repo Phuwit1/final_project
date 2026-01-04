@@ -19,6 +19,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/api.js'
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSQLiteContext } from 'expo-sqlite';
+import { set, setDay } from 'date-fns';
+
 
 dayjs.locale('th');
 
@@ -71,10 +74,13 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
   { planId, startDate, endDate },
   ref
 ) {
+  const db = useSQLiteContext();
+
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState(1);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState<DailyData[]>([]);
+  const [netStatus, setNetStatus] = useState<boolean>(true);
 
   const dayKeys = useMemo(() => buildDayRange(startDate, endDate), [startDate, endDate]);
 
@@ -89,11 +95,11 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
     const res = await axios.get(url, { headers, timeout: 30000 });
 
     const payload = res.data?.payload;
+    console.log(payload);
     if (!payload || !payload.itinerary) {
       setDays([]);
       return;
     }
-
     // map itinerary จาก payload
     const packed: DailyData[] = payload.itinerary.map((day: any, idx: number) => {
       const items: DisplayItem[] = (day.schedule ?? []).map((s: any, i: number) => ({
@@ -109,11 +115,20 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
         items,
       };
     });
-
     setDays(packed);
   } catch (e: any) {
-    console.error("fetchSchedules error:", e?.response?.data ?? e?.message ?? e);
-    Alert.alert("ดึงข้อมูลไม่สำเร็จ", "ตรวจสอบเครือข่าย/สิทธิ์การเข้าถึง");
+    if (e.response) {
+      console.log("fetchSchedules error:", e?.response?.data ?? e?.message ?? e);
+      Alert.alert("ดึงข้อมูลไม่สำเร็จ", "ตรวจสอบเครือข่าย/สิทธิ์การเข้าถึง");
+    }
+    try {
+      const allRows = await db.getAllAsync('SELECT * FROM TripSchedule WHERE plan_id = ?', [planId]);
+      setDays(JSON.parse((allRows[0] as any).payload));
+      setNetStatus(false);
+    }
+    catch (dbError) {
+      console.log("error fetching offline schedules:", dbError);
+    }
   } finally {
     setLoading(false);
   }
@@ -156,7 +171,7 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
         description: '',
       };
 
-      await axios.post(`http://192.168.1.45:8000/trip_schedule`, body, {
+      await axios.post(`${API_BASE}/trip_schedule`, body, {
         headers,
         timeout: 20000,
       });
@@ -215,10 +230,13 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
 
         <View style={styles.headerRow}>
           <Text style={styles.planTitle}> {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')}</Text>
-          <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-                  <Ionicons name="create-outline" size={18} color="#007AFF" />
-                  <Text style={styles.editButtonText}>แก้ไขกิจกรรม</Text>
-          </TouchableOpacity>
+          {netStatus &&
+            <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
+              <Ionicons name="create-outline" size={18} color="#007AFF" />
+              <Text style={styles.editButtonText}>แก้ไขกิจกรรม</Text>
+            </TouchableOpacity>
+          }
+          
         </View>
 
 

@@ -19,6 +19,7 @@ interface TripCardProps {
   people: number;
   image: string;
   budget?: number; // เพิ่ม budget แบบ optional
+  netStatus?: boolean; // สถานะออนไลน์/ออฟไลน์
   planId?: string; // สำหรับส่ง id ไปหน้า budget ถ้าต้องใช้
   tripId?: string;
   groupcode?: string;
@@ -26,7 +27,7 @@ interface TripCardProps {
   onNameUpdate?: (newName: string) => void;
 }
 
-const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, planId,tripId ,onGroupCreated, onNameUpdate}) => {
+const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, netStatus, planId,tripId ,onGroupCreated, onNameUpdate}) => {
     const navigation = useNavigation<any>();
     const router = useRouter();
     console.log('planId from props:', planId);
@@ -209,35 +210,39 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
                 // --- โหมดปกติ ---
                 <View style={styles.displayContainer}>
                     <Text style={styles.tripName} numberOfLines={1}>{tripName}</Text>
-                    <TouchableOpacity onPress={() => setIsEditingName(true)} style={styles.editIcon}>
-                        <Ionicons name="pencil" size={16} color="#666" />
-                    </TouchableOpacity>
+                    {netStatus && (
+                      <TouchableOpacity onPress={() => setIsEditingName(true)} style={styles.editIcon}>
+                          <Ionicons name="pencil" size={16} color="#666" />
+                      </TouchableOpacity>
+                    )}
                 </View>
             )}
         </View>
-
-         {!hasGroup ? (
-          <TouchableOpacity
-            style={styles.createGroupButton}
-            onPress={handleCreateGroup}
-            disabled={loading}
-          >
-            {loading ? (
-                <ActivityIndicator size="small" color="#FFA500" />
-            ) : (
-                <Text style={styles.createGroupText}>+ สร้างกลุ่ม</Text>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.shareButton}
-            onPress={onSharePress}
-            disabled={loading}
-          >
-             <Ionicons name="share-social-outline" size={20} color="#007AFF" />
-             <Text style={styles.shareButtonText}>แชร์</Text>
-          </TouchableOpacity>
+        {netStatus && (
+          !hasGroup ? (
+            <TouchableOpacity
+              style={styles.createGroupButton}
+              onPress={handleCreateGroup}
+              disabled={loading}
+            >
+              {loading ? (
+                  <ActivityIndicator size="small" color="#FFA500" />
+              ) : (
+                  <Text style={styles.createGroupText}>+ สร้างกลุ่ม</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.shareButton}
+              onPress={onSharePress}
+              disabled={loading}
+            >
+              <Ionicons name="share-social-outline" size={20} color="#007AFF" />
+              <Text style={styles.shareButtonText}>แชร์</Text>
+            </TouchableOpacity>
+          )
         )}
+         
       </View>
 
       <View style={styles.imageRow}>
@@ -247,15 +252,19 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
           <Text style={styles.detailText}>{duration}</Text>
           <View style={styles.budgetRow}>
             <Text style={styles.detailText}>จำนวนเงิน: ฿{budget}</Text>
-            <TouchableOpacity style={styles.budgetButton} onPress={goToBudget}>
+            {netStatus && (
+              <TouchableOpacity style={styles.budgetButton} onPress={goToBudget}>
                 <Text style={styles.budgetText}>✏️</Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            )}
           </View>
           <View style={styles.memberRow}>
             <Text style={styles.detailText}>สมาชิก : {people} คน</Text>
-            <TouchableOpacity style={styles.memberButton} onPress={goToMember}>
+            {netStatus && (
+              <TouchableOpacity style={styles.memberButton} onPress={goToMember}>
                   <Text style={styles.budgetText}>✏️</Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            )}
           </View>
           
    

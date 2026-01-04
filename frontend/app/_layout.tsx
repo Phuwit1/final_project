@@ -12,6 +12,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Image, View, Text } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { SQLiteProvider } from 'expo-sqlite';
+import { migrateDbIfNeeded } from '@/database/db-setup';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -61,6 +63,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
+      <SQLiteProvider databaseName="tabigo.db" onInit={migrateDbIfNeeded}>     
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -81,6 +84,7 @@ export default function RootLayout() {
         <StatusBar style="auto" />
         <FlashMessage position="top" />
       </ThemeProvider>
+      </SQLiteProvider>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
