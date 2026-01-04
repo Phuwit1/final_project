@@ -177,17 +177,20 @@ export default function Hometrip() {
 
               </ParallaxScrollView>
 
-              <FloatingChat
-                apiBaseUrl={API_BASE}
-                planId={trip.plan_id}   
-                dayCount={totalDays}
-                startDate={trip.start_plan_date}
-                endDate={trip.end_plan_date}
-                onPatchItinerary={(mappedPlans) => setDailyPlans(mappedPlans)}
-                onNavigateToDay={(index) => dailyRef.current?.setActiveDay(index)}
-                fabBottom={500}     // 👈 ระยะฐาน (จะบวก safe area ให้อัตโนมัติ)
-                fabRight={16}
-              />
+              {netStatus && (
+                <FloatingChat
+                  apiBaseUrl={API_BASE}
+                  planId={trip.plan_id}   
+                  dayCount={totalDays}
+                  startDate={trip.start_plan_date}
+                  endDate={trip.end_plan_date}
+                  onPatchItinerary={(mappedPlans) => setDailyPlans(mappedPlans)}
+                  onNavigateToDay={(index) => dailyRef.current?.setActiveDay(index)}
+                  fabBottom={500}     // 👈 ระยะฐาน (จะบวก safe area ให้อัตโนมัติ)
+                  fabRight={16}
+                />
+              )}
+              
 
              
         </View>
