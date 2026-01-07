@@ -51,7 +51,7 @@ export default function TripDetail() {
 
         const res = await axios.get(`${API_URL}/trip_schedule/${planId}`, { headers });
         const payload = res.data?.payload;
-
+        console.log("dfsd")
         setSchedule(payload);
         setEditedSchedule(JSON.parse(JSON.stringify(payload)));
 

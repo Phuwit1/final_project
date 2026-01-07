@@ -97,7 +97,7 @@ export default function CurrentCard() {
         setCurrentTrip(null);
       }
     } catch (error) {
-      console.error("Error fetching trips:", error);
+      console.log("Error fetching trips:", error);
     } finally {
       setLoading(false);
     }

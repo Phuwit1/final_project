@@ -14,6 +14,8 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import { useFocusEffect } from '@react-navigation/native';
 import { API_URL } from '@/api.js'
+import DownloadTripButton from '@/components/ui/trip/DownloadTripButton';
+import { useSQLiteContext } from 'expo-sqlite';
 
 
 dayjs.locale('th');
@@ -47,13 +49,14 @@ type DailyPlan = { day:number; date:string; items: Partial<Record<TimeSlot, stri
 
 
 export default function Hometrip() {
-
+    const db = useSQLiteContext();
+    
     const { trip_id } = useLocalSearchParams();
     const [trip, setTrip] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [itineraryData, setItineraryData] = useState<any>(null)
     const API_BASE = useMemo(() => `${API_URL}`, []);
-
+    const [netStatus, setNetStatus] = useState<boolean>(true);
     
     const dailyRef = useRef<DailyPlanTabsHandle>(null);
     const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]); 
@@ -69,11 +72,23 @@ export default function Hometrip() {
 
             const res = await axios.get(`${API_URL}/trip_plan/${trip_id}`, {
               headers: { Authorization: `Bearer ${token}` },
+              timeout: 10000,
             });
-
             setTrip(res.data);
-          } catch (err) {
-            console.error('Error fetching trip:', err);
+          } catch (err: any) {
+            if (err.response) {
+              console.error('Error fetching trip:', err);
+              return;
+            }
+            try {
+              const offlineTripsSchedule = await db.getAllAsync('SELECT * FROM TripPlan WHERE plan_id = ?', [trip_id as any]);
+              setTrip(offlineTripsSchedule[0]);
+              setNetStatus(false);
+            }
+            catch (error) {
+              console.error('Error fetching offline trip schedule:', error);
+            }
+            
           } finally {
             setLoading(false);
           }
@@ -111,8 +126,14 @@ export default function Hometrip() {
                       source={require('@/assets/images/home/fuji-view.jpg')}
                       style={styles.imageview}
                     />
+                    
                     <View style={styles.imageOverlay} />
-        
+                      {/* เพิ่มปุ่มดาวน์โหลดข้อมูลทริปสำหรับดูออฟไลน์ */}
+                      {netStatus && (
+                        <View style={{ alignItems: 'flex-end', paddingRight: 16, marginTop: -50 }}>
+                          <DownloadTripButton tripData={trip} planId={trip.plan_id} />
+                        </View>
+                      )}
                       <View style={styles.overlayContent}>
                         <View style={styles.cardWrapper}>
                         <TripCardID
@@ -124,10 +145,10 @@ export default function Hometrip() {
                             planId={trip.plan_id}
                             tripId={trip.trip_id}
                             budget={trip.budget?.total_budget}
+                            netStatus={netStatus}
                             // image={require('@/assets/images/home/fuji-view.jpg')}
                             />
                             </View>
-
                       </View>
                   </View>
                   
@@ -143,17 +164,20 @@ export default function Hometrip() {
 
               </ParallaxScrollView>
 
-              <FloatingChat
-                apiBaseUrl={API_BASE}
-                planId={trip.plan_id}   
-                dayCount={totalDays}
-                startDate={trip.start_plan_date}
-                endDate={trip.end_plan_date}
-                onPatchItinerary={(mappedPlans) => setDailyPlans(mappedPlans)}
-                onNavigateToDay={(index) => dailyRef.current?.setActiveDay(index)}
-                fabBottom={500}     // 👈 ระยะฐาน (จะบวก safe area ให้อัตโนมัติ)
-                fabRight={16}
-              />
+              {netStatus && (
+                <FloatingChat
+                  apiBaseUrl={API_BASE}
+                  planId={trip.plan_id}   
+                  dayCount={totalDays}
+                  startDate={trip.start_plan_date}
+                  endDate={trip.end_plan_date}
+                  onPatchItinerary={(mappedPlans) => setDailyPlans(mappedPlans)}
+                  onNavigateToDay={(index) => dailyRef.current?.setActiveDay(index)}
+                  fabBottom={500}     // 👈 ระยะฐาน (จะบวก safe area ให้อัตโนมัติ)
+                  fabRight={16}
+                />
+              )}
+              
 
              
         </View>

@@ -39,6 +39,7 @@
     "expo-location": "~18.0.10",
     "expo-router": "~4.0.21",
     "expo-splash-screen": "~0.29.24",
+    "expo-sqlite": "~15.1.4",
     "expo-status-bar": "~2.0.1",
     "expo-symbols": "~0.2.2",
     "expo-system-ui": "~4.0.9",
