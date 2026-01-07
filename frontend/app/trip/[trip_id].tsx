@@ -45,19 +45,6 @@ const formatTripDateRange = (startStr: string, endStr: string): string => {
 type TimeSlot = 'MORNING'|'AFTERNOON'|'EVENING'|'NIGHT';
 type DailyPlan = { day:number; date:string; items: Partial<Record<TimeSlot, string[]>> };
 
-// const mockTrips = [
-//     {
-//       id: '1',
-//       name: 'Tokyo Tok Tok',
-//       city: 'Tokyo',
-//       date: '20-23 เม.ย 68',
-//       duration: '3 วัน 2 คืน',
-//       status: 'On Trip',
-//       people: 3,
-//       image: require('@/assets/images/home/fuji-view.jpg'),
-//     },
-// ]
-
 
 export default function Hometrip() {
 

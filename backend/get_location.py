@@ -108,8 +108,14 @@ async def join_group(sid, data):
         group_locations[group_id] = {}
     
     # ส่ง location ของคนอื่นให้คนใหม่ (คนใหม่จะเห็นชื่อคนเก่าเพราะข้อมูลมี username แล้ว)
-    existing_locations = list(group_locations[group_id].values())
-    await sio.emit('group_locations', existing_locations, to=sid)
+    # existing_locations = list(group_locations[group_id].values())
+    # await sio.emit('group_locations', existing_locations, to=sid)
+
+    current_users = group_locations.get(group_id, {})
+    for other_sid, location_data in current_users.items():
+        if other_sid != sid:
+            await sio.emit('location_update', location_data, to=sid)
+            print(f"Sent stored location of {location_data.get('username')} to {sid}")
     
     # แจ้งคนอื่นว่ามีคนใหม่เข้ามา พร้อมชื่อ
     await sio.emit('user_joined', {

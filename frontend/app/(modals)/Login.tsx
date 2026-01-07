@@ -69,7 +69,7 @@ export default function Login() {
       
       console.log('Google Sign-In successful:', { name, email });
 
-      const backendRes = await axios.post('http://192.168.1.45:8000/google-login', { token: idToken });
+      const backendRes = await axios.post(`${API_URL}/google-login`, { token: idToken });
       const { token, refresh_token } = backendRes.data;
     
 

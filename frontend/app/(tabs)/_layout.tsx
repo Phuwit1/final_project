@@ -16,6 +16,8 @@ export default function TabLayout() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
+  
+
   return (
     <>
     <BottomSheetModalProvider>
@@ -27,7 +29,6 @@ export default function TabLayout() {
           tabBarBackground: TabBarBackground,
           tabBarStyle: Platform.select({
             ios: {
-              // Use a transparent background on iOS to show the blur effect
               position: 'absolute',
             },
             default: {},
@@ -155,177 +156,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
-
-// import React, { useRef, useState } from 'react';
-// import {
-//   View,
-//   Text,
-//   StyleSheet,
-//   TouchableOpacity,
-//   Animated,
-//   Pressable,
-//   Dimensions,
-// } from 'react-native';
-// import { Tabs } from 'expo-router';
-// import { IconSymbol } from '@/components/ui/IconSymbol';
-// import { Colors } from '@/constants/Colors';
-// import { useColorScheme } from '@/hooks/useColorScheme';
-
-// const { width, height } = Dimensions.get('window');
-
-// export default function TabLayout() {
-//   const colorScheme = useColorScheme();
-//   const [open, setOpen] = useState(false);
-//   const animation = useRef(new Animated.Value(0)).current;
-
-//   const toggleFab = () => {
-//     const toValue = open ? 0 : 1;
-//     setOpen(!open);
-//     Animated.timing(animation, {
-//       toValue,
-//       duration: 300,
-//       useNativeDriver: true,
-//     }).start();
-//   };
-
-//   const backdropOpacity = animation.interpolate({
-//     inputRange: [0, 1],
-//     outputRange: [0, 0.5],
-//   });
-
-//   const buttonTranslate = animation.interpolate({
-//     inputRange: [0, 1],
-//     outputRange: [20, 0],
-//   });
-
-//   return (
-//     <>
-//       <Tabs
-//         screenOptions={{
-//           headerShown: false,
-//           tabBarShowLabel: false,
-//           tabBarStyle: {
-//             height: 60,
-//             position: 'absolute',
-//           },
-//         }}
-//       >
-//         <Tabs.Screen
-//           name="index"
-//           options={{
-//             title: 'Home',
-//             tabBarIcon: ({ color }) => (
-//               <IconSymbol name="house.fill" size={28} color={color} />
-//             ),
-//           }}
-//         />
-//         <Tabs.Screen
-//           name="explore"
-//           options={{
-//             title: 'Explore',
-//             tabBarIcon: ({ color }) => (
-//               <IconSymbol name="paperplane.fill" size={28} color={color} />
-//             ),
-//           }}
-//         />
-//         <Tabs.Screen name="blank" options={{ href: null }} />
-//       </Tabs>
-
-//       {/* BACKDROP */}
-//       {open && (
-//         <Pressable style={StyleSheet.absoluteFill} onPress={toggleFab}>
-//           <Animated.View
-//             style={[
-//               styles.backdrop,
-//               { opacity: backdropOpacity },
-//             ]}
-//           />
-//         </Pressable>
-//       )}
-
-//       {/* FAB and Actions */}
-//       <View style={styles.fabContainer}>
-//         <Animated.View
-//           style={[
-//             styles.actionButtons,
-//             {
-//               opacity: animation,
-//               transform: [{ translateY: buttonTranslate }],
-//             },
-//           ]}
-//         >
-//           <TouchableOpacity style={styles.actionButtonLeft}>
-//             <Text style={styles.actionText}>Create Trip</Text>
-//           </TouchableOpacity>
-//           <TouchableOpacity style={styles.actionButtonRight}>
-//             <Text style={styles.actionText}>Join Trip</Text>
-//           </TouchableOpacity>
-//         </Animated.View>
-
-//         <TouchableOpacity style={styles.fab} onPress={toggleFab}>
-//           <Text style={styles.fabIcon}>{open ? '×' : '+'}</Text>
-//         </TouchableOpacity>
-//       </View>
-//     </>
-//   );
-// }
-// const styles = StyleSheet.create({
-//   fabContainer: {
-//     position: 'absolute',
-//     bottom: 30,
-//     left: 0,
-//     right: 0,
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//     zIndex: 20,
-//   },
-//   backdrop: {
-//     backgroundColor: '#000',
-//     ...StyleSheet.absoluteFillObject,
-//     zIndex: 10,
-//   },
-//   fab: {
-//     width: 60,
-//     height: 60,
-//     borderRadius: 30,
-//     backgroundColor: '#1e90ff',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     zIndex: 20,
-//   },
-//   fabIcon: {
-//     color: '#fff',
-//     fontSize: 32,
-//   },
-//   actionButtons: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     marginBottom: 12,
-//     width: '80%',
-//   },
-//   actionButtonLeft: {
-//     backgroundColor: '#fff',
-//     paddingVertical: 8,
-//     paddingHorizontal: 16,
-//     borderRadius: 20,
-//     shadowColor: '#000',
-//     shadowOpacity: 0.2,
-//     shadowOffset: { width: 0, height: 2 },
-//     elevation: 2,
-//   },
-//   actionButtonRight: {
-//     backgroundColor: '#fff',
-//     paddingVertical: 8,
-//     paddingHorizontal: 16,
-//     borderRadius: 20,
-//     shadowColor: '#000',
-//     shadowOpacity: 0.2,
-//     shadowOffset: { width: 0, height: 2 },
-//     elevation: 2,
-//   },
-//   actionText: {
-//     color: '#1e90ff',
-//     fontWeight: 'bold',
-//   },
-// });

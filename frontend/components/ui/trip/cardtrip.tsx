@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, Switch } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface TripCardProps {
   name: string;
@@ -24,12 +25,19 @@ const TripCard: React.FC<TripCardProps> = ({name,date,duration,status,people,ima
       <View style={styles.imageRow}>
         <Image source={{ uri: image }} style={styles.image} />
         <View style={styles.details}>
-          <Text style={styles.detailText}>วันที่ {date}</Text>
-          <Text style={styles.detailText}>{duration}</Text>
-          <Text style={styles.detailText}>{people} คน</Text>
-          <View style={styles.peopleRow}>
-            
+          <View style={styles.detailRow}>
+            <Ionicons name="calendar-outline" size={16} color="#444" />
+            <Text style={styles.detailText}>วันที่ {date}</Text>
           </View>
+          <View style={styles.detailRow}>
+            <Ionicons name="airplane-outline" size={16} color="#444" />
+            <Text style={styles.detailText}>{duration}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Ionicons name="person-outline" size={16} color="#444" />
+            <Text style={styles.detailText}>{people} คน</Text>
+          </View>
+          
         </View>
       </View>
     </View>
@@ -75,6 +83,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     justifyContent: 'space-around',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   detailText: {
     fontSize: 14,

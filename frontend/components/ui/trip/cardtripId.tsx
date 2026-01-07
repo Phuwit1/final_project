@@ -243,15 +243,23 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
       <View style={styles.imageRow}>
         <Image source={{ uri: image }} style={styles.image} />
         <View style={styles.details}>
-          <Text style={styles.detailText}>วันที่ {date}</Text>
-          <Text style={styles.detailText}>{duration}</Text>
-          <View style={styles.budgetRow}>
+          <View style={styles.detailRow}>
+            <Ionicons name="calendar-outline" size={16} color="#444" />
+            <Text style={styles.detailText}>วันที่ {date}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Ionicons name="airplane-outline" size={16} color="#444" />
+             <Text style={styles.detailText}>{duration}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Ionicons name="cash-outline" size={16} color="#444" />
             <Text style={styles.detailText}>จำนวนเงิน: ฿{budget}</Text>
             <TouchableOpacity style={styles.budgetButton} onPress={goToBudget}>
                 <Text style={styles.budgetText}>✏️</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.memberRow}>
+          <View style={styles.detailRow}>
+            <Ionicons name="person-outline" size={16} color="#444" />
             <Text style={styles.detailText}>สมาชิก : {people} คน</Text>
             <TouchableOpacity style={styles.memberButton} onPress={goToMember}>
                   <Text style={styles.budgetText}>✏️</Text>
@@ -362,7 +370,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   image: {
-    width: 150,
+    width: 130,
     height: 110,
     backgroundColor: '#ccc',
     borderRadius: 8,
@@ -375,6 +383,12 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 14,
     color: '#444',
+  },
+
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   budgetRow: {
   flexDirection: 'row',
@@ -395,7 +409,7 @@ memberButton: {
 },
 
 budgetButton: {
-  marginLeft: 8,
+  marginLeft: 2,
   backgroundColor: '#f0f0f0',
   paddingVertical: 2,
   paddingHorizontal: 6,
