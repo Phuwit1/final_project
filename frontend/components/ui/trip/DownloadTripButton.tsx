@@ -54,7 +54,6 @@ export default function DownloadTripButton({ tripData, planId }: Props) {
                 items,
             };
         });
-        console.log(packed)
 
       // 1. บันทึกลงตาราง TripPlan
       await db.runAsync(

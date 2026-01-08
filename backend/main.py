@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 import subprocess
 import sys
 
-from routers import auth, customer, trip_group, budget, trip_plan, ai
+from routers import auth, customer, trip_group, budget, trip_plan, ai, flight
 from dependencies import load_cities_data, get_cities_list, cities_data, SECRET_KEY, ALGORITHM, get_db
 
 
@@ -106,6 +106,7 @@ app.include_router(trip_group.router)
 app.include_router(budget.router)
 app.include_router(trip_plan.router)
 app.include_router(ai.router)
+app.include_router(flight.router)
 
 
 @app.get("/cities")
