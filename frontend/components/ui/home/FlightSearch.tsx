@@ -95,6 +95,7 @@ export default function FlightSearch({ visible, onClose }: FlightSearchProps) {
       });
 
       // console.log('Flight search results:', response.data);
+      // check log
       
       if (Array.isArray(response.data)) {
         setFlightResults(response.data);
