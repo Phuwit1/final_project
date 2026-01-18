@@ -94,7 +94,7 @@ export default function FlightSearch({ visible, onClose }: FlightSearchProps) {
         timeout: 5000,
       });
 
-      console.log('Flight search results:', response.data);
+      // console.log('Flight search results:', response.data);
       
       if (Array.isArray(response.data)) {
         setFlightResults(response.data);
