@@ -1,7 +1,9 @@
-import {View, Text, StyleSheet, Image } from 'react-native';
+import {View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import CurrentCard from '@/components/ui/home/CurrentCard';
 import InfoCard from '@/components/ui/home/InfoCard';
+import FlightSearch from '@/components/ui/home/FlightSearch';
 import React, { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -11,7 +13,7 @@ import { API_URL } from '@/api.js'
 
 export default function Home(){
   const [user, setUser] = useState<any>(null);
-
+  const [modalVisible, setModalVisible] = useState(false);
 
   const fetchProfile = async () => {
     try {
@@ -55,6 +57,12 @@ export default function Home(){
               <View style={styles.overlayContent}>
                 <Text style={styles.welcomeText}>Welcome, {fullname} </Text>
                 
+                <TouchableOpacity 
+                  style={styles.flightButton} 
+                  onPress={() => setModalVisible(true)}
+                >
+                  <Ionicons name="airplane" size={24} color="#fff" />
+                </TouchableOpacity>
                 <CurrentCard />
                 
               </View>
@@ -105,9 +113,11 @@ export default function Home(){
             </>
           </View>
         </View>
-      
+        <FlightSearch 
+          visible={modalVisible} 
+          onClose={() => setModalVisible(false)}
+        />
       </ParallaxScrollView>
-        
     )
 
 }
@@ -164,6 +174,17 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 4,
+  },
+  flightButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 10,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10, // มั่นใจว่าปุ่มจะกดได้และอยู่บนสุด
   },
   
 });
