@@ -1,16 +1,4 @@
 
-// import SakuraBackground from '@/components/ui/sakurabackground';
-// import { View } from 'react-native';
-
-// export default function Mytrip(){
-//     return (
-//        <View style={{ flex: 1 }}>
-//         <SakuraBackground />
-//         {/* Your main content here */}
-//     </View>
-//     )
-// }
-
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -20,7 +8,7 @@ import TopBar from '@/components/TopBar';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import dayjs from 'dayjs';
-import 'dayjs/locale/th';
+import 'dayjs/locale/en';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { API_URL } from '@/api.js'
@@ -36,6 +24,7 @@ type Trip = {
   tripGroup?: {
     members: any[]; // หรือกำหนด Type Member ให้ชัดเจน
   } | null;
+  image?: string;
 
 };
 
@@ -53,7 +42,7 @@ const getStatus = (start: string, end: string): 'Upcoming' | 'On Trip' | 'Trip E
  const toThaiYear = (date: dayjs.Dayjs) => date.year() + 543;
 
 const formatTripDateRange = (startStr: string, endStr: string): string => {
-  dayjs.locale('th');
+  dayjs.locale('en');
 
   const start = dayjs(startStr);
   const end = dayjs(endStr);
@@ -195,9 +184,10 @@ export default function TripListScreen() {
           <TripCard
             name={item.name_group}
             date={formattedDate}
-            duration={`${durationDays} วัน`}
+            duration={`${durationDays}`}
             status={getStatus(item.start_plan_date, item.end_plan_date)}
             people={memberCount}
+            image={item.image || 'https://via.placeholder.com/300x200.png?text=No+Image'}
           />
         </TouchableOpacity>
 
