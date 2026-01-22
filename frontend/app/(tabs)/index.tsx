@@ -1,7 +1,8 @@
-import {View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import {View, Text, StyleSheet, Image } from 'react-native';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import CurrentCard from '@/components/ui/home/CurrentCard';
 import InfoCard from '@/components/ui/home/InfoCard';
+import FlightSearch from '@/components/ui/home/FlightSearch';
 import React, { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -22,9 +23,6 @@ interface AttractionData {
 
 export default function Home(){
   const [user, setUser] = useState<any>(null);
-  const [attractions, setAttractions] = useState<AttractionData[]>([]);
-  const [restaurants, setRestaurants] = useState<AttractionData[]>([]);
-  const router = useRouter();
 
 
   const fetchProfile = async () => {
@@ -98,6 +96,12 @@ export default function Home(){
               <View style={styles.overlayContent}>
                 <Text style={styles.welcomeText}>Welcome, {fullname} </Text>
                 
+                <TouchableOpacity 
+                  style={styles.flightButton} 
+                  onPress={() => setModalVisible(true)}
+                >
+                  <Ionicons name="airplane" size={24} color="#fff" />
+                </TouchableOpacity>
                 <CurrentCard />
                 
               </View>
@@ -178,9 +182,11 @@ export default function Home(){
             </>
           </View>
         </View>
-      
+        <FlightSearch 
+          visible={modalVisible} 
+          onClose={() => setModalVisible(false)}
+        />
       </ParallaxScrollView>
-        
     )
 
 }
@@ -238,36 +244,5 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 4,
   },
-  scrollContainer: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  seeMoreCard: {
-    backgroundColor: '#fed9d9ff', // สีฟ้าอ่อนๆ ให้ดูแตกต่าง
-    width: 170,   
-    height: 290,    
-    borderRadius: 12,
-    justifyContent: 'center', 
-    alignItems: 'center',   
-    borderWidth: 2,
-    borderColor: '#fed9d9ff',
-    marginRight: 15, 
-    shadowColor: '#000',
-    shadowOpacity: 0.1, // ลดเงาลงนิดหน่อยให้ดู Modern
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  seeMoreContent: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  seeMoreIcon: {
-    fontSize: 40, // ขนาดไอคอน
-    color: '#ffffffff',
-  },
-  seeMoreText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffffff', // สีฟ้า
-  }
+  
 });

@@ -54,7 +54,6 @@ export default function DownloadTripButton({ tripData, planId }: Props) {
                 items,
             };
         });
-        console.log(packed)
 
       // 1. บันทึกลงตาราง TripPlan
       await db.runAsync(
@@ -76,10 +75,10 @@ export default function DownloadTripButton({ tripData, planId }: Props) {
            [tripData.plan_id, JSON.stringify(packed)]
          );
 
-      Alert.alert('สำเร็จ', 'บันทึกข้อมูลทริปไว้ดูออฟไลน์เรียบร้อยแล้ว');
+      Alert.alert('Success', 'Trip data has been saved for offline use.');
     } catch (error) {
       console.error('Download Error:', error);
-      Alert.alert('ผิดพลาด', 'ไม่สามารถบันทึกข้อมูลลงเครื่องได้');
+      Alert.alert('Error', 'Failed to save trip data for offline use.');
     } finally {
       setIsDownloading(false);
     }
