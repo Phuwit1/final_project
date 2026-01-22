@@ -10,6 +10,7 @@ import * as Linking from 'expo-linking';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // สมมติว่าเก็บ token ไว้ที่นี่
 import { API_URL } from '@/api.js'
+import * as ImagePicker from 'expo-image-picker';
 
 interface TripCardProps {
   name: string;
@@ -25,14 +26,19 @@ interface TripCardProps {
   groupcode?: string;
   onGroupCreated?: (newGroupData: any) => void;
   onNameUpdate?: (newName: string) => void;
+  onImageUpdate?: (newImageUrl: string) => void;
+  
 }
 
-const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, netStatus, planId,tripId ,onGroupCreated, onNameUpdate}) => {
+const CLOUD_NAME = "dqghrasqe"; 
+const UPLOAD_PRESET = "TabiGo";
+
+const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, people, image, budget = 0, netStatus, planId,tripId ,onGroupCreated, onNameUpdate, onImageUpdate,}) => {
     const navigation = useNavigation<any>();
     const router = useRouter();
     console.log('planId from props:', planId);
     console.log('tripId from props:', tripId);
-    const [isPressed, setIsPressed] = useState(false);
+    const [uploading, setUploading] = useState(false);
 
     const [loading, setLoading] = useState(false);
     const [groupCode, setGroupCode] = useState<string | null>(null);
@@ -59,7 +65,28 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
       Alert.alert("Copied", "Invite code copied to clipboard!");
     }
     };
-    const handleCopyLink = async () => {
+
+    const uploadToCloudinary = async (uri: string) => {
+      const data = new FormData();
+      let filename = uri.split('/').pop();
+      let match = /\.(\w+)$/.exec(filename || '');
+      let type = match ? `image/${match[1]}` : `image`;
+
+      // @ts-ignore
+      data.append('file', { uri: uri, name: filename, type });
+      data.append('upload_preset', UPLOAD_PRESET);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: data,
+        headers: { 'content-type': 'multipart/form-data' },
+      });
+      
+      const json = await res.json();
+      return json.secure_url;
+  };
+  
+  const handleCopyLink = async () => {
     if (groupCode) {
       // สร้าง Deep Link (เช่น myapp://join-trip?code=XYZ)
       const redirectUrl = Linking.createURL('join-trip', {
@@ -67,6 +94,51 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
       });
       await Clipboard.setStringAsync(redirectUrl);
       Alert.alert("Copied", "Invite link copied to clipboard!");
+    }
+  };
+
+  const handleChangeImage = async () => {
+    // A. ขอสิทธิ์และเลือกรูป
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'ขอสิทธิ์เข้าถึงรูปภาพครับ');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.7,
+    });
+
+    if (result.canceled) return;
+
+    // B. เริ่มกระบวนการอัปโหลด
+    try {
+      setUploading(true);
+      const localUri = result.assets[0].uri;
+
+      // 1. อัปขึ้น Cloudinary
+      const newImageUrl = await uploadToCloudinary(localUri);
+
+      // 2. อัปเดต Backend ทันที (Auto Save)
+      const token = await AsyncStorage.getItem('access_token');
+      await axios.put(`${API_URL}/trip_plan/${planId}`, 
+        { image: newImageUrl }, // ส่ง URL ใหม่ไป
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // 3. อัปเดตหน้าจอทันที (เรียก function set state ของตัวแม่)
+      if (onImageUpdate) {
+        onImageUpdate(newImageUrl);
+      }
+      
+    } catch (error) {
+      console.error("Update image failed:", error);
+      Alert.alert("Error", "อัปโหลดรูปไม่สำเร็จ");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -89,7 +161,6 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
     try {
         const token = await AsyncStorage.getItem('access_token');// ดึง Token
         console.log("👉 Sending Token:", token);
-        // เปลี่ยน URL ตาม IP เครื่องคุณ
         const response = await axios.post(
             `${API_URL}/trip_group/create_from_plan/${planId}`, 
             {}, 
@@ -228,7 +299,7 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
               {loading ? (
                   <ActivityIndicator size="small" color="#FFA500" />
               ) : (
-                  <Text style={styles.createGroupText}>+ สร้างกลุ่ม</Text>
+                  <Text style={styles.createGroupText}>+ Create Group</Text>
               )}
             </TouchableOpacity>
           ) : (
@@ -238,7 +309,7 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
               disabled={loading}
             >
               <Ionicons name="share-social-outline" size={20} color="#007AFF" />
-              <Text style={styles.shareButtonText}>แชร์</Text>
+              <Text style={styles.shareButtonText}>Share</Text>
             </TouchableOpacity>
           )
         )}
@@ -246,19 +317,38 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
       </View>
 
       <View style={styles.imageRow}>
-        <Image source={{ uri: image }} style={styles.image} />
+        <TouchableOpacity 
+          onPress={handleChangeImage} 
+          disabled={uploading} // ห้ามกดซ้ำตอนกำลังโหลด
+          style={styles.imageContainer}
+        >
+           {/* ถ้ากำลังโหลด ให้โชว์ตัวหมุนๆ */}
+           {uploading ? (
+             <View style={[styles.image, styles.loadingOverlay]}>
+                <ActivityIndicator size="large" color="#FF6B6B" />
+             </View>
+           ) : (
+             <>
+               <Image source={{ uri: image }} style={styles.image} />
+               {/* ไอคอนกล้องเล็กๆ มุมขวา เพื่อบอกว่ากดเปลี่ยนได้ */}
+               <View style={styles.editBadge}>
+                 <Ionicons name="camera" size={12} color="white" />
+               </View>
+             </>
+           )}
+        </TouchableOpacity>
         <View style={styles.details}>
           <View style={styles.detailRow}>
             <Ionicons name="calendar-outline" size={16} color="#444" />
-            <Text style={styles.detailText}>วันที่ {date}</Text>
+            <Text style={styles.detailText}>:  {date}</Text>
           </View>
           <View style={styles.detailRow}>
             <Ionicons name="airplane-outline" size={16} color="#444" />
-             <Text style={styles.detailText}>{duration}</Text>
+             <Text style={styles.detailText}>:  {duration} Days</Text>
           </View>
           <View style={styles.detailRow}>
             <Ionicons name="cash-outline" size={16} color="#444" />
-            <Text style={styles.detailText}>จำนวนเงิน: ฿{budget}</Text>
+            <Text style={styles.detailText}>:  ฿ {budget}</Text>
             {netStatus && (
               <TouchableOpacity style={styles.budgetButton} onPress={goToBudget}>
                 <Text style={styles.budgetText}>✏️</Text>
@@ -267,7 +357,7 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
           </View>
           <View style={styles.detailRow}>
             <Ionicons name="person-outline" size={16} color="#444" />
-            <Text style={styles.detailText}>สมาชิก : {people} คน</Text>
+            <Text style={styles.detailText}>:  {people} people</Text>
             {netStatus && (
               <TouchableOpacity style={styles.memberButton} onPress={goToMember}>
                   <Text style={styles.budgetText}>✏️</Text>
@@ -289,7 +379,7 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>เชิญเพื่อนร่วมทริป</Text>
+                <Text style={styles.modalTitle}>Invite Friends</Text>
                 <TouchableOpacity onPress={() => setShareModalVisible(false)}>
                     <Ionicons name="close" size={24} color="#666" />
                 </TouchableOpacity>
@@ -311,7 +401,7 @@ const TripCardID: React.FC<TripCardProps> = ({name, date, duration, status, peop
 
             <TouchableOpacity style={styles.mainShareButton} onPress={handleShareSystem}>
                 <Ionicons name="share-outline" size={20} color="white" />
-                <Text style={styles.mainShareText}>แชร์ผ่านแอปอื่น</Text>
+                <Text style={styles.mainShareText}>Share other apps</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -383,6 +473,22 @@ const styles = StyleSheet.create({
     height: 110,
     backgroundColor: '#ccc',
     borderRadius: 8,
+  },
+  imageContainer: {
+    position: 'relative',
+  },
+  loadingOverlay: {
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 4,
+    borderRadius: 10,
   },
   details: {
     flex: 1,

@@ -8,7 +8,7 @@ interface TripCardProps {
   duration: string;
   status: 'On Trip' | 'Upcoming' | 'Trip Ended';
   people: number;
-  // image: string;
+  image: string;
 }
 
 const TripCard: React.FC<TripCardProps> = ({name,date,duration,status,people,image
@@ -20,22 +20,20 @@ const TripCard: React.FC<TripCardProps> = ({name,date,duration,status,people,ima
         <Text style={styles.status}>{status}</Text>
       </View>
 
-      {/* <Text style={styles.city}>{city}</Text> */}
-
       <View style={styles.imageRow}>
         <Image source={{ uri: image }} style={styles.image} />
         <View style={styles.details}>
           <View style={styles.detailRow}>
             <Ionicons name="calendar-outline" size={16} color="#444" />
-            <Text style={styles.detailText}>วันที่ {date}</Text>
+            <Text style={styles.detailText}>Date {date}</Text>
           </View>
           <View style={styles.detailRow}>
             <Ionicons name="airplane-outline" size={16} color="#444" />
-            <Text style={styles.detailText}>{duration}</Text>
+            <Text style={styles.detailText}>{duration} Days</Text>
           </View>
           <View style={styles.detailRow}>
             <Ionicons name="person-outline" size={16} color="#444" />
-            <Text style={styles.detailText}>{people} คน</Text>
+            <Text style={styles.detailText}>{people} people</Text>
           </View>
           
         </View>

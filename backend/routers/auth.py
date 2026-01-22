@@ -10,6 +10,7 @@ import secrets
 
 from dependencies import get_db, create_access_token, create_refresh_token, SECRET_KEY, ALGORITHM
 from schemas import Customer, CustomerLogin, CustomerOut, TokenRefreshRequest, GoogleLoginRequest
+import os
 
 router = APIRouter(tags=["Auth"])
 
@@ -191,4 +192,6 @@ async def get_user(request: Request, db: Prisma = Depends(get_db)):
         "phone_number": user.phone_number,
         "birth_date": user.birth_date.isoformat() if user.birth_date else None,
         "createdAt": user.createdAt.isoformat() if user.createdAt else None,
+        "image": user.image
     }
+

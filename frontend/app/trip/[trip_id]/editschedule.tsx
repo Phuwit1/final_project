@@ -13,6 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { G } from 'react-native-svg';
+import dayjs from 'dayjs';
 //import '@/dotenv/config';
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || 'AIzaSyA73tpAfskui7aqX9GXabfGLU0OZ5HLC-U';
@@ -181,10 +182,10 @@ export default function EditSchedule() {
 
 
   const handleDeleteActivity = (actIdx: number) => {
-    Alert.alert("ยืนยัน", "ต้องการลบกิจกรรมนี้ใช่หรือไม่?", [
-      { text: "ยกเลิก", style: "cancel" },
+    Alert.alert("Confirm", "Are you sure you want to delete this activity?", [
+      { text: "Cancel", style: "cancel" },
       { 
-        text: "ลบ", 
+        text: "Delete", 
         style: "destructive",
         onPress: () => {
           setEditedSchedule((prev: any) => {
@@ -211,9 +212,6 @@ export default function EditSchedule() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayList}>
           {editedSchedule.itinerary.map((item: any, index: number) => {
             const isSelected = selectedDayIndex === index;
-            const dateParts = item.date ? item.date.split('-') : []; 
-            const shortDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}` : item.date;
-
             return (
               <TouchableOpacity
                 key={index}
@@ -221,22 +219,22 @@ export default function EditSchedule() {
                 onPress={() => setSelectedDayIndex(index)}
               >
                 <Text style={[styles.dayText, isSelected && styles.selectedDayText]}>{item.day}</Text>
-                <Text style={[styles.dateText, isSelected && styles.selectedDateText]}>{shortDate}</Text>
+                <Text style={[styles.dateText, isSelected && styles.selectedDateText]}>{dayjs(item.date).format('D MMM')}</Text>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
       </View>
 
-      {/* Body: รายการกิจกรรม */}
+      {/* Body: รายการกิจกรรม  {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')} */}
       
         <View style={styles.bodytop}>
             <View style={styles.dayHeaderRow}>
-            <Text style={styles.dayTitle}>✨ {currentDay.day} - {currentDay.date}</Text>
+            <Text style={styles.dayTitle}> {currentDay.day} - {dayjs(currentDay.date).format('D MMM YY')}</Text>
             
             <TouchableOpacity onPress={handleAddActivity} style={styles.addButton}>
                 <Ionicons name="add-circle" size={24} color="#28a745" />
-                <Text style={styles.addButtonText}>เพิ่มกิจกรรม</Text>
+                <Text style={styles.addButtonText}>Add Activity</Text>
             </TouchableOpacity>
             </View>
         </View>
@@ -247,8 +245,10 @@ export default function EditSchedule() {
           {currentDay.schedule.map((item: any, i: number) => (
             <View key={`${selectedDayIndex}-${i}`} style={styles.cardContainer}>
               <View style={styles.card}>
+                
+
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>เวลา</Text>
+                  <Text style={styles.label}>Time</Text>
 
                   <TouchableOpacity onPress={() => openTimePicker(item.time, i)}>
                     <View style={styles.timeInputBox}>
@@ -258,7 +258,7 @@ export default function EditSchedule() {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>กิจกรรม</Text>
+                  <Text style={styles.label}>Activity</Text>
                   <TextInput
                     style={[styles.input, { flex: 1 }]}
                     multiline
@@ -266,15 +266,16 @@ export default function EditSchedule() {
                     onChangeText={(val) => updateActivity(selectedDayIndex, i, "activity", val)}
                   />
                 </View>
+
+                <TouchableOpacity 
+                  style={styles.deleteButton} 
+                  onPress={() => handleDeleteActivity(i)}
+                >
+                  <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                </TouchableOpacity>
               </View>
 
-              {/* ✅ ปุ่มลบ (ถังขยะ) อยู่ด้านขวาของการ์ด */}
-              <TouchableOpacity 
-                style={styles.deleteButton} 
-                onPress={() => handleDeleteActivity(i)}
-              >
-                <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-              </TouchableOpacity>
+              
             </View>
           ))}
           <View style={{ height: 80 }} /> 
@@ -294,7 +295,7 @@ export default function EditSchedule() {
       {/* Footer: ปุ่มบันทึก */}
       <View style={styles.footerContainer}>
         <TouchableOpacity onPress={confirmPlan} style={styles.confirmButton}>
-          <Text style={styles.confirmButtonText}>💾 บันทึกการแก้ไข</Text>
+          <Text style={styles.confirmButtonText}>Save Changes</Text>
         </TouchableOpacity>
       </View>
 
@@ -379,6 +380,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 15,
     marginBottom: 16,
+    marginHorizontal: 16
   },
   dayTitle: { fontSize: 20, fontWeight: "bold", color: '#333' },
   addButton: {
@@ -398,7 +400,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   card: {
-    flex: 1, // ให้ Card ขยายเต็มพื้นที่ที่เหลือ
+    position: 'relative',
+    flex: 1,
     padding: 16, 
     backgroundColor: "#fff", 
     borderRadius: 12, 
@@ -407,10 +410,12 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
   },
   deleteButton: {
-    padding: 10,
-    marginLeft: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'white',
+    borderRadius: 15,
+    zIndex: 10,
   },
 
   bodyContainer: { flex: 1, paddingHorizontal: 16  },

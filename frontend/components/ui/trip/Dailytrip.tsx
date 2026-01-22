@@ -13,7 +13,7 @@ import {
 
 } from 'react-native';
 import dayjs from 'dayjs';
-import 'dayjs/locale/th';
+import 'dayjs/locale/en';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/api.js'
@@ -23,7 +23,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { set, setDay } from 'date-fns';
 
 
-dayjs.locale('th');
+dayjs.locale('en');
 
 const API_BASE = `${API_URL}`;
 
@@ -221,8 +221,8 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
           <Text style={styles.planTitle}> {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')}</Text>
           {netStatus &&
             <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-              <Ionicons name="create-outline" size={18} color="#007AFF" />
-              <Text style={styles.editButtonText}>แก้ไขกิจกรรม</Text>
+              <Ionicons name="create-outline" size={18} color="#ffffffff" />
+              <Text style={styles.editButtonText}>Edit Activity</Text>
             </TouchableOpacity>
           }
           

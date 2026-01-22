@@ -9,6 +9,7 @@ class Customer(BaseModel):
     password: Optional[str] = None
     phone_number: Optional[str] = None
     birth_date: Optional[datetime] = None
+    image : Optional[str] = None
     
 class CustomerLogin(BaseModel):
     email: str
@@ -52,9 +53,11 @@ class TripPlan(BaseModel):
     end_plan_date: datetime
     day_of_trip: Optional[int] = None
     trip_id: Optional[int] = None
+    image: Optional[str] = None
 
 class TripPlanUpdate(BaseModel):
     name_group: Optional[str] = None
+    image: Optional[str] = None
     
 class TripSchedule(BaseModel):
     plan_id: int

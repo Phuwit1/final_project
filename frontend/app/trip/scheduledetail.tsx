@@ -11,9 +11,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '@/api.js'
 import dayjs from 'dayjs';
-import 'dayjs/locale/th';
+import 'dayjs/locale/en';
 
-dayjs.locale('th');
+dayjs.locale('en');
 
 type City = {
   id: number;
@@ -51,7 +51,6 @@ export default function TripDetail() {
 
         const res = await axios.get(`${API_URL}/trip_schedule/${planId}`, { headers });
         const payload = res.data?.payload;
-        console.log("dfsd")
         setSchedule(payload);
         setEditedSchedule(JSON.parse(JSON.stringify(payload)));
 
@@ -130,7 +129,7 @@ export default function TripDetail() {
             { headers }
         );
 
-        Alert.alert("สำเร็จ", "บันทึกแผนและอัปเดตพิกัดเรียบร้อยแล้ว ✅");
+        Alert.alert("Success", "Your plan has been saved and location updated successfully.");
         router.replace({ pathname: "/(tabs)/mytrip" });
 
     } catch (error) {
@@ -192,7 +191,7 @@ export default function TripDetail() {
       setSchedule(revised);
       setEditedSchedule(revised);
       setNewNote(""); // ล้างข้อความ
-      Alert.alert("สำเร็จ", "AI สร้างแผนใหม่ให้คุณเรียบร้อยแล้ว ✨");
+      Alert.alert("Success", "Your new travel plan is ready!");
 
     } catch (e) {
       console.error("แก้ไขแผนใหม่ไม่สำเร็จ:", e);
@@ -222,7 +221,7 @@ export default function TripDetail() {
             style={styles.addButton} 
             onPress={() => setAddModalVisible(true)}
           >
-            <Text style={styles.addButtonText}>แก้ไขใหม่</Text>
+            <Text style={styles.addButtonText}>Edit Details</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -267,7 +266,7 @@ export default function TripDetail() {
           {currentDay.schedule.map((item: any, i: number) => (
             <View key={`${selectedDayIndex}-${i}`} style={styles.card}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>เวลา</Text>
+                <Text style={styles.label}>Time</Text>
                 <TextInput
                   style={styles.input}
                   value={item.time}
@@ -276,7 +275,7 @@ export default function TripDetail() {
               </View>
               
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>กิจกรรม</Text>
+                <Text style={styles.label}>Activity</Text>
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   multiline
@@ -294,11 +293,11 @@ export default function TripDetail() {
       {/* --- 3. ปุ่มยืนยัน (Footer) --- */}
       <View style={styles.footerContainer}>
         <TouchableOpacity onPress={confirmPlan} style={styles.confirmButton}>
-          <Text style={styles.confirmButtonText}>ยืนยันแผน</Text>
+          <Text style={styles.confirmButtonText}>Confirm</Text>
         </TouchableOpacity>
       </View>
 
-      {/* --- 4. Modal สำหรับปุ่มเพิ่ม --- */}
+      {/* Modal แก้ไข Schedule Details */}
       <Modal
         visible={isAddModalVisible}
         transparent={true}
@@ -307,13 +306,13 @@ export default function TripDetail() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>แก้ไขแผนการเดินทางใหม่</Text>
-            <Text style={styles.modalSubtitle}>กรอกความต้องการสถานที่ ที่ท่านอยากไป</Text>
+            <Text style={styles.modalTitle}>Edit Your Trip Plan</Text>
+            <Text style={styles.modalSubtitle}>Tell us what kind of places you would like to visit</Text>
 
-            <Text style={styles.label}>เลือกเมืองที่ต้องการไป</Text>
+            <Text style={styles.label}>Select Cities</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="ค้นหาเมือง..."
+              placeholder="Search for a city..."
               value={citySearch}
               onChangeText={setCitySearch}
             />
@@ -338,10 +337,10 @@ export default function TripDetail() {
               />
             </View>
 
-            <Text style={[styles.label, { marginTop: 10 }]}>ความต้องการเพิ่มเติม</Text>
+            <Text style={[styles.label, { marginTop: 10 }]}>Additional Preferences</Text>
             <TextInput 
               style={styles.modalInput}
-              placeholder="เช่น อยากเน้นกิน, อยากไปวัด, ไม่รีบ..."
+              placeholder="e.g. food-focused, temples, relaxed pace..."
               value={newNote}
               onChangeText={setNewNote}
               multiline
@@ -353,14 +352,14 @@ export default function TripDetail() {
                 style={[styles.modalBtn, styles.cancelBtn]} 
                 onPress={() => setAddModalVisible(false)}
               >
-                <Text style={styles.modalBtnText}>ยกเลิก</Text>
+                <Text style={styles.modalBtnText}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 style={[styles.modalBtn, styles.saveBtn]} 
                 onPress={handleRegenerate}
               >
-                <Text style={[styles.modalBtnText, { color: 'white' }]}>แก้ไข</Text>
+                <Text style={[styles.modalBtnText, { color: 'white' }]}>Update Plan</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -375,7 +374,7 @@ export default function TripDetail() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>คำแนะนำจาก AI</Text>
+            <Text style={styles.modalTitle}>AI Recommendations</Text>
             <ScrollView style={{ maxHeight: 400, marginVertical: 10 }}>
               <Text style={{ fontSize: 16, color: '#333', lineHeight: 24 }}>
                 {editedSchedule?.comments || "ไม่มีคำแนะนำเพิ่มเติม"}
@@ -386,7 +385,7 @@ export default function TripDetail() {
                 style={[styles.modalBtn, styles.saveBtn]} 
                 onPress={() => setIsCommentModalVisible(false)}
               >
-                <Text style={[styles.modalBtnText, { color: 'white' }]}>ปิด</Text>
+                <Text style={[styles.modalBtnText, { color: 'white' }]}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -398,7 +397,7 @@ export default function TripDetail() {
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color="#FFA500" />
-            <Text style={styles.loadingText}>กำลังปรับปรุงแผน...</Text>
+            <Text style={styles.loadingText}>Updating your plan...</Text>
           </View>
         </View>
       </Modal>

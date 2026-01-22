@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Button, Alert, StyleSheet, TouchableOpacity, Image} from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +25,12 @@ export default function Login() {
 
   const [termChecked, setTermChecked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: "1061030412176-tmtkq6rgmr4biqpr8ir1sk902od0mu1e.apps.googleusercontent.com",
+    });
+  }, []);
   
   const handleLogin = async () => {
   try {

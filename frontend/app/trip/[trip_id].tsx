@@ -18,7 +18,7 @@ import DownloadTripButton from '@/components/ui/trip/DownloadTripButton';
 import { useSQLiteContext } from 'expo-sqlite';
 
 
-dayjs.locale('th');
+dayjs.locale('en');
 
 const getStatus = (start: string, end: string): 'Upcoming' | 'On Trip' | 'Trip Ended' => {
   const now = new Date();
@@ -54,7 +54,6 @@ export default function Hometrip() {
     const { trip_id } = useLocalSearchParams();
     const [trip, setTrip] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [itineraryData, setItineraryData] = useState<any>(null)
     const API_BASE = useMemo(() => `${API_URL}`, []);
     const [netStatus, setNetStatus] = useState<boolean>(true);
     
@@ -112,7 +111,15 @@ export default function Hometrip() {
 
     const totalDays = getDuration(trip.start_plan_date, trip.end_plan_date);
 
-   
+    const handleImageUpdate = (newImageUrl: string) => {
+      console.log("Parent received new image:", newImageUrl);
+      
+      // สั่ง update state ของแม่ (เพื่อให้หน้าจอมัน render รูปใหม่)
+      setTrip((prev: any) => ({
+        ...prev,
+        image: newImageUrl 
+      }));
+    };
 
     return (
         <View style={styles.screen} pointerEvents="box-none">
@@ -139,14 +146,15 @@ export default function Hometrip() {
                         <TripCardID
                             name={trip.name_group}
                             date={formatTripDateRange(trip.start_plan_date, trip.end_plan_date)}
-                            duration={`${getDuration(trip.start_plan_date, trip.end_plan_date)} วัน`}
+                            duration={`${getDuration(trip.start_plan_date, trip.end_plan_date)}`}
                             status={getStatus(trip.start_plan_date, trip.end_plan_date)}
                             people={(trip.tripGroup?.members?.length || 1)}
                             planId={trip.plan_id}
                             tripId={trip.trip_id}
                             budget={trip.budget?.total_budget}
                             netStatus={netStatus}
-                            // image={require('@/assets/images/home/fuji-view.jpg')}
+                            image={trip.image || 'https://via.placeholder.com/300x200.png?text=No+Image'}
+                            onImageUpdate={handleImageUpdate}
                             />
                             </View>
                       </View>
