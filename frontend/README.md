@@ -24,7 +24,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install @react-navigation/native @react-navigation/native-stack
    npm install react-native-screens react-native-safe-area-context
    npx expo install react-native-google-places-autocomplete
-
+   npx expo install expo-sqlite
    ```
 
 1.1 get sha1
