@@ -1,19 +1,13 @@
-from typing import Union, List, Dict, Any
 from prisma import Prisma, types
-from prisma.errors import ForeignKeyViolationError, UniqueViolationError, RecordNotFoundError
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import bcrypt
 from jose import jwt, JWTError
-from typing import Annotated, Optional
 from datetime import date, datetime, time, timedelta, date as D, time as T
 from fastapi.middleware.cors import CORSMiddleware
-import secrets
-import string
 import uvicorn
 from starlette.middleware.base import BaseHTTPMiddleware
-import re, os, json, psycopg2
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
@@ -21,9 +15,11 @@ from contextlib import asynccontextmanager
 import subprocess
 import sys
 
-from routers import auth, customer, trip_group, budget, trip_plan, ai, flight
+from routers import auth, customer, trip_group, budget, trip_plan, ai
 from dependencies import load_cities_data, get_cities_list, cities_data, SECRET_KEY, ALGORITHM, get_db
+from db import db
 
+import os
 
 load_dotenv()
 
@@ -32,9 +28,12 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     # --- startup ---
     load_cities_data()
+    await db.connect()
     yield
     # --- shutdown ---
+    await db.disconnect()
     cities_data.clear()
+    
 
 app = FastAPI(lifespan=lifespan)
 
@@ -71,7 +70,7 @@ app.add_middleware(
 @app.middleware("http")
 async def jwt_middleware(request: Request, call_next):
     
-    if request.url.path in ["/login", "/register", "/refresh-token", "/google-login", "/cities"]:
+    if request.url.path in ["/login", "/register", "/refresh-token", "/google-login", "/cities"]:   
         return await call_next(request)
 
     auth = request.headers.get("Authorization")
@@ -106,7 +105,6 @@ app.include_router(trip_group.router)
 app.include_router(budget.router)
 app.include_router(trip_plan.router)
 app.include_router(ai.router)
-app.include_router(flight.router)
 
 
 @app.get("/cities")

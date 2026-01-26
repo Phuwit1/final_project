@@ -76,6 +76,7 @@ export default function RootLayout() {
           <Stack.Screen name="trip/after-create" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
           <Stack.Screen name="trip/[trip_id]/member" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
           <Stack.Screen name="trip/scheduledetail" options={{headerTitle: () => (<CustomHeaderTitle/>)}} />
+          
 
 
           {/* <Stack.Screen name="Login" />

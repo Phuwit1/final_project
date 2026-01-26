@@ -9,7 +9,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_URL } from '@/api.js'
-// 👉 เปลี่ยนให้เป็นของโปรเจกต์คุณ (หรือ import จาก config)
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 
 
 type LLMResponse = {
@@ -29,21 +30,15 @@ type TripScheduleIn = {
   description: string;
 };
 
+const CLOUD_NAME = "dqghrasqe"; 
+const UPLOAD_PRESET = "TabiGo";
+
 type City = {
   id: number;
   name: string;
 };
 
-const toHHmmss = (t?: string) => {
-  if (!t) return '09:00:00';
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
-  if (!m) return '09:00:00';
-  return `${m[1].padStart(2, '0')}:${m[2]}:00`;
-};
 
-
-
-// Date -> 'DD/MM/YYYY' (ตามสเปค /llm/)
 const toDDMMYYYY_fromDate = (d: Date) => {
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -58,8 +53,6 @@ const toYMD = (d: Date) => {
   return `${y}-${m}-${day}`; // e.g. "2025-08-14"
 };
 
-const CITY_OPTIONS = ["Tokyo", "Osaka", "Kyoto", "Nagoya", "Sapporo"];
-
 export default function AICreateTrip() {
   const router = useRouter();
 
@@ -72,7 +65,9 @@ export default function AICreateTrip() {
   const [citySearch, setCitySearch] = useState(''); 
   const [loadingCities, setLoadingCities] = useState(false);
 
-  // วันที่เริ่ม/จบ (ห้ามย้อนหลัง, end ≥ start)
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   const today = new Date(); today.setHours(0,0,0,0);
   const [startDate, setStartDate] = useState<Date>(today);
   const [endDate, setEndDate] = useState<Date>(today);
@@ -89,7 +84,7 @@ export default function AICreateTrip() {
     const picked = new Date(selected); picked.setHours(0,0,0,0);
 
     if (picked < today) {
-      Alert.alert('ไม่สามารถเลือกวันในอดีตได้');
+      Alert.alert('Cannot select a past date');
       return;
     }
     if (picker.mode === 'start') {
@@ -97,62 +92,102 @@ export default function AICreateTrip() {
       if (picked > endDate) setEndDate(picked);
     } else {
       if (picked < startDate) {
-        Alert.alert('วันสิ้นสุดต้องไม่อยู่ก่อนวันเริ่มต้น');
+        Alert.alert('End date cannot be before start date');
         return;
       }
       setEndDate(picked);
     }
   };
 
-const toggleCity = (name: string) => {
-  setSelectedCities(prev =>
-    prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-  );
-};
-
-// filter รายชื่อเมืองตามช่องค้นหา (ฝั่ง client)
-const filteredCities = useMemo(() => {
-  const q = citySearch.trim().toLowerCase();
-  if (!q) return cities;
-  return cities.filter(c => c.name.toLowerCase().includes(q));
-}, [cities, citySearch]);
-
-
-const CITIES_ENDPOINT = `${API_URL}/cities`; // หรือ /cities
-
-useEffect(() => {
-  let mounted = true;
-  (async () => {
-    try {
-      setLoadingCities(true);
-      const token = await AsyncStorage.getItem('access_token');
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers.Authorization = `Bearer ${token}`;
-
-      const res = await axios.get(CITIES_ENDPOINT, { headers, timeout: 15000 });
-      
-      const rows = Array.isArray(res.data) ? res.data : res.data?.items ?? [];
-      const normalized: City[] = rows.map((c: any) => ({
-        id: Number(c.id),
-        name: String(c.name),
-      })).filter(x => Number.isFinite(x.id) && x.name);
-
-      if (mounted) setCities(normalized);
-    } catch (e) {
-      console.error('Load cities error:', e);
-      if (mounted) Alert.alert('โหลดรายชื่อเมืองไม่สำเร็จ', 'ลองใหม่อีกครั้ง');
-    } finally {
-      if (mounted) setLoadingCities(false);
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow access to your photos');
+      return;
     }
-  })();
-  return () => { mounted = false; };
-}, []);
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+    }
+  };
+
+  const uploadToCloudinary = async (uri: string) => {
+    const data = new FormData();
+    let filename = uri.split('/').pop();
+    let match = /\.(\w+)$/.exec(filename || '');
+    let type = match ? `image/${match[1]}` : `image`;
+
+    // @ts-ignore
+    data.append('file', { uri: uri, name: filename, type });
+    data.append('upload_preset', UPLOAD_PRESET);
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: data,
+      headers: { 'content-type': 'multipart/form-data' },
+    });
+    
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+    return json.secure_url;
+  };
+
+
+  const toggleCity = (name: string) => {
+    setSelectedCities(prev =>
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
+  };
+
+  const filteredCities = useMemo(() => {
+    const q = citySearch.trim().toLowerCase();
+    if (!q) return cities;
+    return cities.filter(c => c.name.toLowerCase().includes(q));
+  }, [cities, citySearch]);
+
+
+  const CITIES_ENDPOINT = `${API_URL}/cities`;
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingCities(true);
+        const token = await AsyncStorage.getItem('access_token');
+        const headers: any = { 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await axios.get(CITIES_ENDPOINT, { headers, timeout: 15000 });
+        
+        const rows = Array.isArray(res.data) ? res.data : res.data?.items ?? [];
+        const normalized: City[] = rows.map((c: any) => ({
+          id: Number(c.id),
+          name: String(c.name),
+        })).filter((x: City) => Number.isFinite(x.id) && x.name);
+
+        if (mounted) setCities(normalized);
+      } catch (e) {
+        console.error('Load cities error:', e);
+        if (mounted) Alert.alert('Load cities error', 'Try again');
+      } finally {
+        if (mounted) setLoadingCities(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
 
 const onCreateWithAI = async () => {
   try {
     if (!tripName.trim()) {
-      Alert.alert('กรุณาใส่ชื่อทริป');
+      Alert.alert('Please enter trip name');
       return;
     }
 
@@ -161,31 +196,43 @@ const onCreateWithAI = async () => {
     const headers: any = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    // 1) สร้างทริปใหม่ก่อน (ยังไม่มี plan_id)
+    let coverImageUrl = null;
+      if (imageUri) {
+        try {
+          setUploadingImage(true);
+          coverImageUrl = await uploadToCloudinary(imageUri);
+          console.log("Uploaded cover:", coverImageUrl);
+        } catch (imgErr) {
+          console.error("Image upload failed:", imgErr);
+          Alert.alert("Warning", "Image upload failed. Trip will be created without cover.");
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
     const createPayload = {
       name_group: tripName.trim(),
       start_plan_date: toYMD(startDate),
       end_plan_date: toYMD(endDate),
+      image: coverImageUrl,
     };
+    console.log("SENDING PAYLOAD:", createPayload);
+    
     const created = await axios.post(
-      `${API_URL}/trip_plan`,
-      createPayload,
-      { headers, timeout: 30000 }
+      `${API_URL}/trip_plan`,createPayload,{ headers, timeout: 30000 }
     );
 
     const planId: number = Number(created.data?.plan_id);
     const tripIdForRoute: string = String(
       created.data?.trip_id ?? created.data?.plan_id
-    ); // fallback ถ้าไม่มี trip_id
+    );
 
     if (!Number.isFinite(planId)) {
-      Alert.alert('สร้างทริปไม่สำเร็จ', 'ไม่พบ plan_id จากเซิร์ฟเวอร์');
+      Alert.alert('Create Trip error', 'Not Found plan_id in response');
       setLoading(false);
       return;
     }
 
-
-    // 2) ขอให้ LLM สร้าง itinerary
     const llmBody = {
       start_date: toDDMMYYYY_fromDate(startDate),
       end_date: toDDMMYYYY_fromDate(endDate),
@@ -214,9 +261,9 @@ const onCreateWithAI = async () => {
       { headers } 
     );
 
-    Alert.alert('สำเร็จ', `สร้างทริปและแผนรายวันด้วย AI แล้ว`, [
+    Alert.alert('Succuess', `Create your Trip and Schedule`, [
       {
-        text: 'ดูแผน',
+        text: 'See Schedule Detail',
         onPress: () =>
           router.push({
             pathname: "/trip/scheduledetail",
@@ -232,7 +279,7 @@ const onCreateWithAI = async () => {
       'AI create trip error:',
       e?.response?.data ?? e?.message ?? e
     );
-    Alert.alert('สร้างไม่สำเร็จ', 'กรุณาลองใหม่ หรือตรวจสอบเซิร์ฟเวอร์');
+    Alert.alert('Create trip error', 'Please try again');
   } finally {
     setLoading(false);
   }
@@ -242,21 +289,37 @@ const onCreateWithAI = async () => {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: 'padding', android: undefined })}>
       <View style={styles.container}>
-        <Text style={styles.title}>✨ สร้างทริปใหม่ ✨</Text>
-        <Text style={styles.sub}>ใส่ข้อมูล แล้วให้ AI จัด Daily Trip ให้เลย</Text>
+        <Text style={styles.title}> Create New Trip </Text>
+
+        <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                 <Ionicons name="camera-outline" size={32} color="#888" />
+                 <Text style={styles.imagePlaceholderText}>Add Cover Photo</Text>
+              </View>
+            )}
+            {/* ปุ่มเปลี่ยนรูปเล็กๆ มุมขวา */}
+            {imageUri && (
+                <View style={styles.editIconBadge}>
+                    <Ionicons name="pencil" size={14} color="#fff" />
+                </View>
+            )}
+          </TouchableOpacity>
 
         <View style={styles.field}>
-          <Text style={styles.label}>ชื่อทริป</Text>
-          <TextInput value={tripName} onChangeText={setTripName} placeholder="เช่น Tokyo Autumn" style={styles.input} />
+          <Text style={styles.label}>Trip Name</Text>
+          <TextInput value={tripName} onChangeText={setTripName} placeholder="e.g. Tokyo Autumn" style={styles.input} />
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>เลือกเมือง</Text>
+          <Text style={styles.label}>Choose City</Text>
 
           {/* ปุ่มเปิด Modal */}
           <TouchableOpacity style={styles.selectBtn} onPress={() => setCityModalVisible(true)}>
             <Text style={styles.selectBtnText}>
-              {selectedCities.length > 0 ? selectedCities.join(', ') : 'เลือกหลายเมือง'}
+              {selectedCities.length > 0 ? selectedCities.join(', ') : 'Select your cities'}
             </Text>
           </TouchableOpacity>
 
@@ -276,11 +339,11 @@ const onCreateWithAI = async () => {
         <Modal visible={cityModalVisible} animationType="slide" transparent>
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>เลือกเมือง</Text>
+              <Text style={styles.modalTitle}>City</Text>
 
               {/* ช่องค้นหา */}
               <TextInput
-                placeholder="ค้นหาเมือง..."
+                placeholder="Find city..."
                 value={citySearch}
                 onChangeText={setCitySearch}
                 style={styles.searchInput}
@@ -297,7 +360,7 @@ const onCreateWithAI = async () => {
                   style={{ maxHeight: 320 }}
                   ListEmptyComponent={
                     <Text style={{ textAlign: 'center', paddingVertical: 16, color: '#666' }}>
-                      ไม่พบเมืองที่ค้นหา
+                      City not found
                     </Text>
                   }
                   renderItem={({ item }) => {
@@ -317,10 +380,10 @@ const onCreateWithAI = async () => {
               {/* ปุ่มปิด/ยืนยัน */}
               <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
                 <TouchableOpacity style={[styles.modalBtn, styles.modalCancel]} onPress={() => setCityModalVisible(false)}>
-                  <Text style={styles.modalBtnText}>ปิด</Text>
+                  <Text style={styles.modalBtnText}>Close</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.modalBtn, styles.modalApply]} onPress={() => setCityModalVisible(false)}>
-                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>ยืนยัน</Text>
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Confirm</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -328,20 +391,20 @@ const onCreateWithAI = async () => {
         </Modal>
 
         <View style={styles.field}>
-          <Text style={styles.label}>ความต้องการ</Text>
-          <TextInput value={triprequest} onChangeText={setTripRequest} placeholder="เช่น อยากไปดูซากุระ" style={styles.input} />
+          <Text style={styles.label}>Interests</Text>
+          <TextInput value={triprequest} onChangeText={setTripRequest} placeholder="e.g. Cherry blossoms, local food, temples" style={styles.input} />
         </View>
 
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1 }]}>
-            <Text style={styles.label}>วันที่ไป</Text>
+            <Text style={styles.label}>Start Date</Text>
             <TouchableOpacity style={styles.dateBtn} onPress={() => openPicker('start')}>
               <Text style={styles.dateText}>{startDate.toDateString()}</Text>
             </TouchableOpacity>
           </View>
           <View style={{ width: 12 }} />
           <View style={[styles.field, { flex: 1 }]}>
-            <Text style={styles.label}>วันที่กลับ</Text>
+            <Text style={styles.label}>End Date</Text>
             <TouchableOpacity style={styles.dateBtn} onPress={() => openPicker('end')}>
               <Text style={styles.dateText}>{endDate.toDateString()}</Text>
             </TouchableOpacity>
@@ -359,11 +422,11 @@ const onCreateWithAI = async () => {
         )}
 
         <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onCreateWithAI} disabled={loading || !tripName}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>สร้างทริปด้วย AI</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Create Your Trip</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => router.back()} disabled={loading}>
-          <Text style={styles.btnGhostText}>ย้อนกลับ</Text>
+          <Text style={styles.btnGhostText}>Back</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -381,6 +444,22 @@ const styles = StyleSheet.create({
 
   dateBtn:{ borderWidth:1, borderColor:'#e5e7eb', borderRadius:12, padding:12, backgroundColor:'#fff' },
   dateText:{ fontSize:16, color: '#111' },
+
+  imagePicker: {
+    width: '100%', height: 160,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 16,
+    borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed',
+    justifyContent: 'center', alignItems: 'center',
+    overflow: 'hidden', marginBottom: 10
+  },
+  imagePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
+  imagePlaceholder: { alignItems: 'center', gap: 6 },
+  imagePlaceholderText: { color: '#6B7280', fontSize: 14, fontWeight: '500' },
+  editIconBadge: {
+    position: 'absolute', bottom: 10, right: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 20
+  },
 
   btn:{ padding:16, borderRadius:12, alignItems:'center' },
   btnPrimary:{ backgroundColor:'#111827' },

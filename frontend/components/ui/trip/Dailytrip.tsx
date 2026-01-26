@@ -13,7 +13,7 @@ import {
 
 } from 'react-native';
 import dayjs from 'dayjs';
-import 'dayjs/locale/th';
+import 'dayjs/locale/en';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/api.js'
@@ -23,20 +23,10 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { set, setDay } from 'date-fns';
 
 
-dayjs.locale('th');
+dayjs.locale('en');
 
 const API_BASE = `${API_URL}`;
 
-// ===== ชนิดข้อมูลจาก API =====
-type DBScheduleRow = {
-  schedule_id: number;
-  plan_id: number;
-  date: string;           // ISO DateTime (db.Date) เช่น "2025-10-10T00:00:00.000Z"
-  time: string;           // ISO DateTime (db.Time) เช่น "1970-01-01T09:00:00.000Z"
-  activity: string;
-  description: string;
-  creat_at?: string;
-};
 
 // ===== โครงให้แสดงต่อวัน =====
 type DisplayItem = {
@@ -179,7 +169,6 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
       setModalVisible(false);
       setNewTime('09:00');
       setNewDesc('');
-      // รีเฟรชจาก DB ให้ตรงกัน
       fetchSchedules();
     } catch (e: any) {
       console.error('addActivity error:', e?.response?.data ?? e?.message ?? e);
@@ -220,7 +209,7 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
         })}
         <TouchableOpacity
           onPress={fetchSchedules}
-          style={[styles.dayButton, { backgroundColor: '#E5F3FF' }]}
+          style={[styles.dayButton, { backgroundColor: '#ffe5eeff' }]}
         >
           {loading ? <ActivityIndicator /> : <Text style={{ fontWeight: '600' }}>รีเฟรช</Text>}
         </TouchableOpacity>
@@ -232,8 +221,8 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
           <Text style={styles.planTitle}> {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')}</Text>
           {netStatus &&
             <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-              <Ionicons name="create-outline" size={18} color="#007AFF" />
-              <Text style={styles.editButtonText}>แก้ไขกิจกรรม</Text>
+              <Ionicons name="create-outline" size={18} color="#ffffffff" />
+              <Text style={styles.editButtonText}>Edit Activity</Text>
             </TouchableOpacity>
           }
           
@@ -259,40 +248,6 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
 
       </View>
 
-      {/* Modal เพิ่มกิจกรรม */}
-      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalBg}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>เพิ่มกิจกรรม</Text>
-
-            <Text style={styles.modalLabel}>เวลา (HH:mm)</Text>
-            <TextInput
-              value={newTime}
-              onChangeText={setNewTime}
-              placeholder="เช่น 09:00"
-              keyboardType="numeric"
-              style={styles.input}
-            />
-
-            <Text style={styles.modalLabel}>รายละเอียดกิจกรรม</Text>
-            <TextInput
-              value={newDesc}
-              onChangeText={setNewDesc}
-              placeholder="เช่น เดินชมวัด Asakusa"
-              style={styles.input}
-            />
-
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => setModalVisible(false)}>
-                <Text style={{ color: '#555' }}>ยกเลิก</Text>
-              </Pressable>
-              <Pressable style={[styles.btn, styles.btnPrimary]} onPress={addActivity}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>บันทึก</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 });
@@ -335,7 +290,7 @@ const styles = StyleSheet.create({
   planContainer: {
     padding: 16,
     borderRadius: 8,
-    backgroundColor: '#F0F8FF',
+    backgroundColor: '#fff1f1ff',
     marginBottom: 16,
   },
   planTitle: {
@@ -349,16 +304,25 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e5e7eb',
+    borderColor: '#fff1f7ff',
   },
   time: {
-    width: 60,
+    width: 50,
+    height: 50,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    borderRadius: 30,
+    fontSize: 14,
+    backgroundColor: '#ff6a6aff',
     fontWeight: '700',
-    color: '#111',
+    color: '#ffffffff',
   },
   activity: {
     color: '#111',
     fontSize: 15,
+    fontWeight: '600',
+    marginTop: 10,
+    textAlignVertical: 'center',
     marginBottom: 2,
   },
   desc: {
@@ -398,7 +362,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   btnPrimary: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#b8ceffff',
   },
   headerRow: {
     flexDirection: 'row',
@@ -409,13 +373,13 @@ const styles = StyleSheet.create({
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0F8FF',
+    backgroundColor: '#ff8f9cff',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 15,
   },
   editButtonText: {
-    color: '#007AFF',
+    color: '#ffffffff',
     fontWeight: '600',
     fontSize: 14,
   },

@@ -266,7 +266,7 @@ const handleSave = async () => {
         <Text style={styles.tripName}>{trip ? trip.name_group : 'กำลังโหลด...'}</Text>
 
         <View style={styles.budgetRow}>
-          <Text style={styles.budgetText}>งบ</Text>
+          <Text style={styles.budgetText}>Budget</Text>
           <Text style={styles.budgetAmount}> {budget ? budget.total_budget : 'กำลังโหลด...'} THB </Text>
           <TouchableOpacity onPress={openEditBudgetModal}>
             <Ionicons name="create-outline" size={20} color="black" />
@@ -484,6 +484,7 @@ const styles = StyleSheet.create({
   },
   budgetText: {
     fontSize: 16,
+    fontWeight: 'bold',
     color: 'white',
   },
   budgetAmount: {

@@ -1,5 +1,4 @@
-import {View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {View, Text, StyleSheet, Image } from 'react-native';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import CurrentCard from '@/components/ui/home/CurrentCard';
 import InfoCard from '@/components/ui/home/InfoCard';
@@ -9,11 +8,22 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { useFocusEffect } from '@react-navigation/native';
 import { API_URL } from '@/api.js'
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
+interface AttractionData {
+  attraction_id: number;
+  name: string;
+  place_types: string[];
+  photo_ref: string;
+  rating: number;
+  address: string;
+  description: string;
+}
 
 export default function Home(){
   const [user, setUser] = useState<any>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+
 
   const fetchProfile = async () => {
     try {
@@ -35,11 +45,40 @@ export default function Home(){
     }
   };
 
-    useFocusEffect(
+  const fetchAttractions = async () => {
+    try{
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) {
+        console.log('No token found');
+        return;
+      }
+
+      const res = await axios.get<AttractionData[]>(`${API_URL}/attractions/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+      );
+      const allData = res.data;
+
+      const attractions = allData.filter(item => item.place_types.includes('tourist_attraction'));
+      const restaurants = allData.filter(item => item.place_types.includes('restaurant'));
+
+      setAttractions(attractions);
+      setRestaurants(restaurants);
+
+    } catch (err: any) {
+      console.log('Fetch attractions error:', err.response?.data || err.message);
+    }
+  }
+
+
+  useFocusEffect(
       React.useCallback(() => {
         fetchProfile();
+        fetchAttractions();
       }, [])
-    );
+  );
 
     const fullname = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest';
   
@@ -71,45 +110,75 @@ export default function Home(){
         }  
       >
           <View>
-            <Text style={{fontSize: 24}}> สถานที่ท่องเที่ยวแนะนำ</Text>
+            <Text style={{fontSize: 24}}> Attraction Recommend </Text>
           </View>
           
-          <View style={styles.container}>
-            <>
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-            </>
-          </View>
-      
+         <ScrollView 
+            horizontal={true} 
+            showsHorizontalScrollIndicator={false} // ซ่อนบาร์เลื่อนด้านล่างให้สวยงาม
+            contentContainerStyle={styles.scrollContainer} // ใช้ style ใหม่สำหรับจัดระยะห่าง
+          >
+            {attractions.map((item) => (
+              <View key={item.attraction_id} style={{ marginRight: 15 }}> 
+  
+                <InfoCard 
+                  title={item.name}
+                  imageRef={item.photo_ref}
+                  rating={item.rating}
+                  description={item.description}
+                />
+              </View>
+            ))}
+
+            <TouchableOpacity 
+                style={styles.seeMoreCard} 
+                onPress={() => router.push(`/search`)}
+            >
+                <View style={styles.seeMoreContent}>
+              
+                    <Ionicons name="log-out-outline" style={styles.seeMoreIcon}></Ionicons>
+                
+                    <Text style={styles.seeMoreText}>ดูเพิ่มเติม</Text>
+                </View>
+            </TouchableOpacity>
+          </ScrollView>
+            
 
         <View>
-          <Text style={{fontSize: 24}}> ร้านอาหารแนะนำ</Text>
-          <View style={styles.container}>
-            <>
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard />
-            </> 
-          </View>
+          <Text style={{fontSize: 24}}> Restaurant Recommend </Text>
+          <ScrollView 
+              horizontal={true} 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContainer}
+            >
+              {restaurants.map((item) => (
+                <View key={item.attraction_id} style={{ marginRight: 15 }}>
+                  <InfoCard 
+                    title={item.name}
+                    imageRef={item.photo_ref}
+                    rating={item.rating}
+                    description={item.description}
+                  />
+                </View>
+              ))}
+                <TouchableOpacity 
+                  style={styles.seeMoreCard} 
+                  onPress={() => router.push(`/search`)} // กดแล้วไป Tab Search
+              >
+                  <View style={styles.seeMoreContent}>
+                  
+                      <Ionicons name="log-out-outline" style={styles.seeMoreIcon}></Ionicons>
+                    
+                      <Text style={styles.seeMoreText}>ดูเพิ่มเติม</Text>
+                  </View>
+              </TouchableOpacity>
+            </ScrollView>
         </View>
 
         <View>
           <Text style={{fontSize: 24}}> ทริปไกด์แนะนำ</Text>
           <View style={styles.container}>
             <>
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
-              <InfoCard /> 
             </>
           </View>
         </View>
@@ -174,17 +243,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 4,
-  },
-  flightButton: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 10,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10, // มั่นใจว่าปุ่มจะกดได้และอยู่บนสุด
   },
   
 });

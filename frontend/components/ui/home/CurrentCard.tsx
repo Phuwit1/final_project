@@ -5,11 +5,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import dayjs from 'dayjs';
-import 'dayjs/locale/th';
+import 'dayjs/locale/en';
 import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '@/api.js'; // ตรวจสอบ path นี้ให้ถูกต้อง
 
-dayjs.locale('th');
+dayjs.locale('en');
 
 type Trip = {
   plan_id: number;
@@ -19,6 +19,7 @@ type Trip = {
   tripGroup?: {
     members: any[];
   } | null;
+  image?: string;
 };
 
 export default function CurrentCard() {
@@ -59,7 +60,6 @@ export default function CurrentCard() {
         const trips = res.data;
         const now = dayjs();
 
-        // 1. หา Trip ที่กำลังเดินทาง (On Trip)
         const onTrip = trips.find((t: Trip) => {
           const start = dayjs(t.start_plan_date);
           const end = dayjs(t.end_plan_date);
@@ -70,8 +70,7 @@ export default function CurrentCard() {
         if (onTrip) {
           setCurrentTrip(onTrip);
         } else {
-          // 2. ถ้าไม่มี On Trip -> หา Trip ที่กำลังจะมาถึง (Upcoming) [Priority 2]
-          // เงื่อนไข: วันเริ่ม ต้องมากกว่า วันปัจจุบัน
+
           const upcomingTrips = trips
             .filter((t: Trip) => dayjs(t.start_plan_date).isAfter(now, 'day'))
             .sort((a: Trip, b: Trip) => dayjs(a.start_plan_date).diff(dayjs(b.start_plan_date))); // เรียงจาก ใกล้ -> ไกล
@@ -79,8 +78,7 @@ export default function CurrentCard() {
           if (upcomingTrips.length > 0) {
             setCurrentTrip(upcomingTrips[0]); // เอาอันที่ใกล้ที่สุด
           } else {
-            // 3. ถ้าไม่มี Upcoming -> หา Trip ที่จบไปแล้ว (Ended) [Priority 3]
-            // เงื่อนไข: วันจบ ต้องน้อยกว่า วันปัจจุบัน
+
             const endedTrips = trips
               .filter((t: Trip) => dayjs(t.end_plan_date).isBefore(now, 'day'))
               .sort((a: Trip, b: Trip) => dayjs(b.end_plan_date).diff(dayjs(a.end_plan_date))); // เรียงจาก จบล่าสุด -> จบนานแล้ว
@@ -92,6 +90,7 @@ export default function CurrentCard() {
             }
           }
         }
+
       } else {
         setHasAnyTrip(false);
         setCurrentTrip(null);
@@ -159,7 +158,7 @@ export default function CurrentCard() {
         <View style={styles.buttonGroup}>
           <TouchableOpacity style={styles.sakuraButton} onPress={handleCreateTrip}>
             <Ionicons name="add-circle-outline" size={20} color="white" />
-            <Text style={styles.buttonText}>สร้างทริป</Text>
+            <Text style={styles.buttonText}>Create Trip</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.sakuraButton, styles.joinButton]} onPress={handleJoinTrip}>
@@ -184,28 +183,28 @@ export default function CurrentCard() {
         return (
 
             <Text style={[styles.statusUpcoming, styles.statusText]}>
-                ทริปกำลังจะมาถึง
+                Upcoming
             </Text>      
         ); // Upcoming
     } else if (now.isAfter(end, 'day')) {
         return (
         <Text style={[styles.statusEnded, styles.statusText]}>
-                ทริปสิ้นสุดแล้ว
+                Ended
         </Text>
         ); // Ended
     } else {
         return (
         <Text style={[styles.statusActive, styles.statusText]}>
-                กำลังเดินทาง
+                On Trip
         </Text>
-        ); // On Trip
+        );
     }
   };
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={styles.cardHeader}>ทริปล่าสุด</Text>
+        <Text style={styles.cardHeader}>Current Trip</Text>
         
 
         <View style={styles.rightHeader}>
@@ -214,7 +213,7 @@ export default function CurrentCard() {
  
             {isEnded && (
             <TouchableOpacity style={styles.smallSakuraBtn} onPress={handleCreateTrip}>
-                <Text style={styles.smallSakuraText}>+ ทริปใหม่</Text>
+                <Text style={styles.smallSakuraText}>+ New Trip</Text>
             </TouchableOpacity>
             )}
         </View>
@@ -222,7 +221,7 @@ export default function CurrentCard() {
 
       <TouchableOpacity style={styles.info} onPress={handlePressCard} activeOpacity={0.8}>
         <Image
-          source={require('@/assets/images/home/fuji-view.jpg')}
+          source={{ uri: currentTrip.image }}
           style={styles.cardImage}
         />
         <View style={styles.textContainer}>
@@ -238,7 +237,7 @@ export default function CurrentCard() {
             <Text style={styles.detailText}>
               {currentTrip.tripGroup?.members && currentTrip.tripGroup.members.length > 0 
                     ? currentTrip.tripGroup.members.length 
-                    : 1} คน           
+                    : 1} people           
             </Text>
           </View>
         </View>

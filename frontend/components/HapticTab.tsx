@@ -1,18 +1,31 @@
 import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import { PlatformPressable } from '@react-navigation/elements';
+import { Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-export function HapticTab(props: BottomTabBarButtonProps) {
+export function HapticTab({
+  onPress,
+  onPressIn,
+  onLongPress,
+  children,
+}: BottomTabBarButtonProps) {
   return (
-    <PlatformPressable
-      {...props}
+    <Pressable
+      onPress={onPress}
       onPressIn={(ev) => {
         if (process.env.EXPO_OS === 'ios') {
-          // Add a soft haptic feedback when pressing down on the tabs.
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
-        props.onPressIn?.(ev);
+        onPressIn?.(ev);
       }}
-    />
+      onLongPress={onLongPress}
+      style={{ 
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'transparent',
+       }}   // ❗ ห้ามมี padding / bg
+    >
+      {children}
+    </Pressable>
   );
 }

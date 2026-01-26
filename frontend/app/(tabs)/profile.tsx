@@ -17,6 +17,12 @@ import FinishedTripCard from '@/components/ui/profile/FinishedTripCard';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import  Avatar  from '@/components/ui/profile/Avatar';
+import * as ImagePicker from 'expo-image-picker';
+
+const CLOUD_NAME = "dqghrasqe"; 
+const UPLOAD_PRESET = "TabiGo";
+
 
 export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
@@ -26,46 +32,49 @@ export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const router = useRouter();
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+  
 
 
   const fetchProfile = async () => {
-  try {
-    const token = await AsyncStorage.getItem('access_token');
-    console.log("FetchProfile with token:", token);
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      console.log("FetchProfile with token:", token);
 
-    if (!token) {
-      Alert.alert('Unauthorized', 'Please log in again');
-      return;
-    }
+      if (!token) {
+        Alert.alert('Unauthorized', 'Please log in again');
+        return;
+      }
 
-    const res = await axios.get(`${API_URL}/user`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-    });
-    const userData = res.data;
-
-    const tripsRes = await axios.get(`${API_URL}/trip_plan`, {
-          headers: { Authorization: `Bearer ${token}` }
+      const res = await axios.get(`${API_URL}/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+        },
       });
+      const userData = res.data;
 
-    const fullUserData = {
-          ...userData,
-          ownedTrips: tripsRes.data // เอาทริปมาใส่ใน user object
-      };
-    console.log("User response:", res.data);
-    setUser(fullUserData);
-    setTempInfo(fullUserData);
-  } catch (err : any) {
-    console.log('Fetch user error:', err.response?.data || err.message);
-    if (err.response?.status === 401) {
-      await AsyncStorage.removeItem('access_token');
-      router.push('/Login')
+      const tripsRes = await axios.get(`${API_URL}/trip_plan`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+      const fullUserData = {
+            ...userData,
+            ownedTrips: tripsRes.data // เอาทริปมาใส่ใน user object
+        };
+      console.log("User response:", res.data);
+      setUser(fullUserData);
+      setTempInfo(fullUserData);
+    } catch (err : any) {
+      console.log('Fetch user error:', err.response?.data || err.message);
+      if (err.response?.status === 401) {
+        await AsyncStorage.removeItem('access_token');
+        router.push('/Login')
+      }
     }
-  }
-};
+  };
 
 
   useFocusEffect(
@@ -76,6 +85,74 @@ export default function ProfileScreen() {
 
   const handleLogoutSuccess = () => {
     router.push('/Login') // ไปหน้า Login หลัง logout สำเร็จ
+  };
+
+  const uploadToCloudinary = async (uri: string) => {
+      const data = new FormData();
+      let filename = uri.split('/').pop();
+      let match = /\.(\w+)$/.exec(filename || '');
+      let type = match ? `image/${match[1]}` : `image`;
+
+      // @ts-ignore
+      data.append('file', { uri: uri, name: filename, type });
+      data.append('upload_preset', UPLOAD_PRESET);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: data,
+        headers: { 'content-type': 'multipart/form-data' },
+      });
+      
+      const json = await res.json();
+      return json.secure_url;
+  };
+
+  const handleEditImage = async () => {
+    // 2.1 ขอสิทธิ์และเลือกรูป
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'ขออนุญาตเข้าถึงอัลบั้มรูปครับ');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images', // แก้เป็น string ตามเวอร์ชันใหม่
+      allowsEditing: true,
+      aspect: [1, 1],       // รูปโปรไฟล์ควรเป็นจัตุรัส
+      quality: 0.6,         // ลดคุณภาพลงหน่อยจะได้เร็ว
+    });
+
+    if (result.canceled) return;
+
+    // 2.2 เริ่มอัปโหลด
+    try {
+      setUploading(true); // เริ่มหมุนติ้วๆ
+      const localUri = result.assets[0].uri;
+
+      const newImageUrl = await uploadToCloudinary(localUri);
+      console.log("New Profile URL:", newImageUrl);
+
+      const token = await AsyncStorage.getItem('access_token');
+      
+      await axios.patch(`${API_URL}/customer/${user.customer_id}`, 
+        { image: newImageUrl }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // C. อัปเดตหน้าจอทันที (ไม่ต้องรอโหลดใหม่)
+      setUser((prev: any) => ({
+        ...prev,
+        image: newImageUrl 
+      }));
+
+      Alert.alert("Success", "อัปเดตรูปโปรไฟล์เรียบร้อย!");
+
+    } catch (error) {
+      console.error("Update profile failed:", error);
+      Alert.alert("Error", "อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setUploading(false); // หยุดหมุน
+    }
   };
 
   const handleSave = async() => {
@@ -99,7 +176,7 @@ export default function ProfileScreen() {
         first_name: tempInfo.first_name,
         last_name: tempInfo.last_name,
         phone_number: tempInfo.phone_number,
-        birth_date: tempInfo.birth_date, 
+        birth_date: tempInfo.birth_date,
       };
 
       // 2. เรียก API Update
@@ -123,8 +200,6 @@ export default function ProfileScreen() {
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios'); // iOS ให้แสดงค้างไว้จนกว่าจะกด Done (ถ้ามีปุ่ม) หรือปิดเอง
     if (selectedDate) {
-        // แปลงเป็น ISO String เพื่อเก็บและส่ง Backend (เช่น 2025-06-25T00:00:00.000Z)
-        // หรือถ้า Backend รับ YYYY-MM-DD ให้แปลงตามนั้น แต่ปกติ ISO ดีที่สุด
         setTempInfo({ ...tempInfo, birth_date: selectedDate.toISOString() });
         
         // สำหรับ Android เลือกปุ๊ปปิดปั๊ป
@@ -166,12 +241,31 @@ export default function ProfileScreen() {
       {user && tempInfo && (
         <View style={styles.profileCard}>
           <View style={styles.avatarBox}>
-            <Text style={styles.avatarText}>
-              {user.first_name?.[0]?.toUpperCase() || '👤'}
-            </Text>
+            <TouchableOpacity onPress={handleEditImage} style={{ position: 'relative' }}>
+    
+            <Avatar 
+              uri={user?.image} 
+              name={user?.name} 
+              size={110} 
+            />
+
+            {/* ✅ ปุ่มไอคอนกล้อง (Badge) */}
+            <View style={{
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+              backgroundColor: '#FF6B6B', // สีธีม
+              padding: 8,
+              borderRadius: 20,
+              borderWidth: 2,
+              borderColor: 'white'
+            }}>
+              <Ionicons name="camera" size={16} color="white" />
+            </View>
+
+          </TouchableOpacity>
           </View>
 
-          {/* ส่วนชื่อ-นามสกุล (แก้ไขแยกกันได้) */}
           {isEditing ? (
             <View style={{flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 10}}>
                 <TextInput

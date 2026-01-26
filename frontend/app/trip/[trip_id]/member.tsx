@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
-  ActivityIndicator, Alert, Image, SafeAreaView, RefreshControl
+  ActivityIndicator, Alert, Image, SafeAreaView, RefreshControl, Modal
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,6 +11,9 @@ import { API_URL } from '@/api.js';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 
+import MemberLocationMap from '@/components/ui/trip/member/MemberLocation'; // path ตามที่คุณสร้าง
+import { set } from 'date-fns';
+
 export default function MemberScreen() {
   const { trip_id } = useLocalSearchParams(); // รับ planId มาจาก router
   const router = useRouter();
@@ -19,8 +22,10 @@ export default function MemberScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [tripGroup, setTripGroup] = useState<any>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
+  const [user, setUser] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [showMap, setShowMap] = useState(false);
 
   useFocusEffect(
       useCallback(() => {
@@ -43,6 +48,7 @@ export default function MemberScreen() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCurrentUserEmail(userRes.data.email);
+      setUser(userRes.data);
 
       // 2. ดึงข้อมูล Plan เพื่อหา Group ID
       const planRes = await axios.get(`${API_URL}/trip_plan/${trip_id}`, {
@@ -158,6 +164,7 @@ export default function MemberScreen() {
                 </Text>
             </View>
         </View>
+
         
         <View style={styles.infoContainer}>
             <View style={{flexDirection:'row', alignItems:'center', gap: 6}}>
@@ -206,6 +213,36 @@ export default function MemberScreen() {
             </TouchableOpacity>
           </View>
       )}
+
+      <TouchableOpacity 
+          style={styles.mapButton} 
+          onPress={() => {
+              if (tripGroup?.uniqueCode) {
+                  setShowMap(true);
+              } else {
+                  Alert.alert("ยังไม่มีรหัสกลุ่ม");
+              }
+          }}
+      >
+          <Ionicons name="map" size={20} color="white" />
+          <Text style={styles.mapButtonText}>ดูตำแหน่งเพื่อน</Text>
+      </TouchableOpacity>
+
+
+      <Modal
+        visible={showMap}
+        animationType="slide"
+        onRequestClose={() => setShowMap(false)} // ปิดเมื่อกด Back Android
+      >
+        {tripGroup && (
+            <MemberLocationMap 
+                groupCode={tripGroup.uniqueCode} // ส่ง Code อัตโนมัติ
+                userId={user?.customer_id || 0} // ส่ง ID เรา
+                userName={user?.first_name || 'Me'} 
+                onClose={() => setShowMap(false)} // ฟังก์ชันปิด
+            />
+        )}
+      </Modal>
 
       {/* Member List */}
       <Text style={styles.sectionTitle}>รายชื่อสมาชิก ({members.length})</Text>
@@ -307,5 +344,19 @@ const styles = StyleSheet.create({
   },
   leaveButtonText: {
     color: '#FF3B30', fontSize: 16, fontWeight: 'bold'
+  },
+  mapButton: {
+    flexDirection: 'row',
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: 16,
+    gap: 8
+  },
+  mapButtonText: {
+    color: 'white',
+    fontWeight: 'bold'
   }
 });
