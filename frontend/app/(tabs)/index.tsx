@@ -10,6 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { API_URL } from '@/api.js'
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, TouchableOpacity } from 'react-native-gesture-handler';
 
 interface AttractionData {
   attraction_id: number;
@@ -23,6 +24,10 @@ interface AttractionData {
 
 export default function Home(){
   const [user, setUser] = useState<any>(null);
+  const [attractions, setAttractions] = useState<AttractionData[]>([]);
+  const [restaurants, setRestaurants] = useState<AttractionData[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const router = useRouter();
 
 
   const fetchProfile = async () => {
@@ -243,6 +248,52 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 4,
+  },
+  flightButton: {
+    position: 'absolute',
+    top: 40, // ปรับให้ตรงกับ welcomeText
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)', // พื้นหลังโปร่งใสเล็กน้อย
+    padding: 8,
+    borderRadius: 20, // ทำเป็นวงกลม
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  seeMoreCard: {
+    width: 140,       // ความกว้างให้ใกล้เคียงกับ InfoCard
+    height: 180,      // ความสูง (ปรับให้เท่ากับ InfoCard ของคุณ)
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    // Shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,     // เงาสำหรับ Android
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  seeMoreContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8, // ระยะห่างระหว่าง Icon กับ Text
+  },
+  seeMoreIcon: {
+    fontSize: 32,
+    color: '#007AFF', // สีฟ้ามาตรฐาน หรือเปลี่ยนเป็นสีธีมแอป
+  },
+  seeMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  scrollContainer: {
+    paddingHorizontal: 16, // ระยะห่างขอบซ้ายขวาของ ScrollView
+    paddingBottom: 16,     // ระยะห่างด้านล่าง
+    alignItems: 'center',  // จัดให้อยู่กึ่งกลางแนวตั้ง
   },
   
 });
