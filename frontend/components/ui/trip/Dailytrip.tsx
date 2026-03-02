@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -123,10 +124,15 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
     setLoading(false);
   }
 };
-  useEffect(() => {
-    fetchSchedules();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planId, startDate, endDate]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSchedules();
+      
+      // ฟังก์ชัน cleanup (ถ้าจำเป็น)
+      return () => {};
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [planId, startDate, endDate])
+  );
 
   useImperativeHandle(ref, () => ({
     setActiveDay: (index: number) => {
