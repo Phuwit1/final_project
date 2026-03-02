@@ -73,15 +73,42 @@ export default function EditSchedule() {
     }, [planId]) // dependencies array
   );
 
+  // const updateActivity = (dayIdx: number, actIdx: number, field: string, value: string) => {
+  //   setEditedSchedule((prev: any) => {
+  //     const copy = { ...prev };
+  //     copy.itinerary[dayIdx].schedule[actIdx][field] = value;
+  //     return copy;
+  //   });
+  
+  // };
+  // make sure to sort by time after updating time field
   const updateActivity = (dayIdx: number, actIdx: number, field: string, value: string) => {
     setEditedSchedule((prev: any) => {
-      const copy = { ...prev };
-      copy.itinerary[dayIdx].schedule[actIdx][field] = value;
-      return copy;
-    });
-  
-  };
+      // 1. Create a deep-ish copy of the specific day's schedule to avoid direct state mutation
+      const updatedItinerary = [...prev.itinerary];
+      const updatedSchedule = [...updatedItinerary[dayIdx].schedule];
+      
+      // 2. Update the specific field
+      updatedSchedule[actIdx] = { ...updatedSchedule[actIdx], [field]: value };
 
+      // 3. If the time was updated, sort the array by time
+      if (field === "time") {
+        updatedSchedule.sort((a, b) => {
+          // Handle missing times just in case
+          if (!a.time) return 1;
+          if (!b.time) return -1;
+          
+          // "HH:mm" format sorts perfectly alphabetically
+          return a.time.localeCompare(b.time); 
+        });
+      }
+
+      // 4. Put the sorted schedule back into the itinerary
+      updatedItinerary[dayIdx] = { ...updatedItinerary[dayIdx], schedule: updatedSchedule };
+
+      return { ...prev, itinerary: updatedItinerary };
+    });
+  };
   const confirmPlan = async () => {
     try {
       setSaving(true);
