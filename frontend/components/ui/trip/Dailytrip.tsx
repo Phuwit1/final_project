@@ -1,16 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal,
-  TextInput,
-  Pressable,
   ActivityIndicator,
   Alert,
-
 } from 'react-native';
 import dayjs from 'dayjs';
 import 'dayjs/locale/en';
@@ -21,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { set, setDay } from 'date-fns';
+import { useFocusEffect } from '@react-navigation/native';
 
 
 dayjs.locale('en');
@@ -123,10 +120,13 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
     setLoading(false);
   }
 };
-  useEffect(() => {
-    fetchSchedules();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planId, startDate, endDate]);
+
+useFocusEffect(
+    useCallback(() => {
+      fetchSchedules(); // ฟังก์ชันดึง API ของคุณ
+    }, [planId, startDate, endDate])
+  );
+
 
   useImperativeHandle(ref, () => ({
     setActiveDay: (index: number) => {
@@ -136,45 +136,6 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
     reload: () => fetchSchedules(),
   }));
 
-  // === Add activity (POST /trip_schedule) ===
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newTime, setNewTime] = useState('09:00');  // 'HH:mm'
-  const [newDesc, setNewDesc] = useState('');
-
-  const addActivity = async () => {
-    const desc = newDesc.trim();
-    if (!desc) return;
-
-    // แปลง 'HH:mm' -> 'HH:mm:00'
-    const hhmmss = /^\d{1,2}:\d{2}$/.test(newTime) ? `${newTime}:00` : newTime;
-
-    try {
-      const token = await AsyncStorage.getItem('access_token');
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (token) headers.Authorization = `Bearer ${token}`;
-
-      const body = {
-        plan_id: planId,
-        date: dayKeys[selectedDay - 1], // 'YYYY-MM-DD'
-        time: hhmmss,
-        activity: desc,
-        description: '',
-      };
-
-      await axios.post(`${API_BASE}/trip_schedule`, body, {
-        headers,
-        timeout: 20000,
-      });
-
-      setModalVisible(false);
-      setNewTime('09:00');
-      setNewDesc('');
-      fetchSchedules();
-    } catch (e: any) {
-      console.error('addActivity error:', e?.response?.data ?? e?.message ?? e);
-      Alert.alert('บันทึกไม่สำเร็จ', 'กรุณาลองใหม่');
-    }
-  };
 
   const current = days.find(d => d.day === selectedDay);
 

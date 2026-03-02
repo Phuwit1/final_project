@@ -117,18 +117,14 @@ model CacheAttraction {
   
 
   google_place_id String   @unique @db.VarChar(100)
-  
-
   rating          Float?   @default(0.0)
   review_count    Int?     @default(0)
   photo_ref       String?  @db.Text
   address         String?  @db.Text
   
-
   last_fetched_at DateTime? 
   place_types     String[] @default([])
   
-
   city_id         Int
   city            City     @relation(fields: [city_id], references: [city_id])
 }

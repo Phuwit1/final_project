@@ -70,6 +70,7 @@ async def create_trip_plan(trip_plan: TripPlan, db: Prisma = Depends(get_db), cu
         trip_plan = trip_plan.model_dump()
         trip_plan["creator_id"] = current_user.customer_id
         trip_plan["day_of_trip"] = (trip_plan["end_plan_date"] - trip_plan["start_plan_date"]).days + 1
+        print("Creating trip plan with data:", trip_plan)
         
         trip_plans = await db.tripplan.create(
             data={
@@ -102,7 +103,7 @@ async def update_trip_plan(plan_id: int, trip_plan: TripPlanUpdate, db: Prisma =
     try:
         # ดึงเฉพาะค่าที่ส่งมา (exclude_unset=True) เพื่อไม่ให้ค่าอื่นโดนทับด้วย null
         data = trip_plan.model_dump(exclude_unset=True)
-        
+        print(f"📦 Data going to DB: {data}")
         updated_plan = await db.tripplan.update(
             where={"plan_id": plan_id},
             data=data

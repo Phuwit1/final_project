@@ -14,7 +14,8 @@ import { useCallback } from 'react';
 import { API_URL } from '@/api.js'
 import { Ionicons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
-
+import { LinearGradient } from 'expo-linear-gradient';
+import TripListSkeleton from '@/components/ui/trip/TripListSkeleton';
 
 type Trip = {
   plan_id: number;
@@ -39,7 +40,7 @@ const getStatus = (start: string, end: string): 'Upcoming' | 'On Trip' | 'Trip E
 };
 
 
- const toThaiYear = (date: dayjs.Dayjs) => date.year() + 543;
+const toThaiYear = (date: dayjs.Dayjs) => date.year() + 543;
 
 const formatTripDateRange = (startStr: string, endStr: string): string => {
   dayjs.locale('en');
@@ -55,28 +56,76 @@ const formatTripDateRange = (startStr: string, endStr: string): string => {
   return `${startDate}-${endDate} ${monthName} ${year}`;
 };
 
+// 🌸 Component สำหรับแสดงผลตอนไม่มีทริป
+const EmptyTripState = ({ router }: { router: any }) => (
+  <View style={styles.emptyContainer}>
+    {/* ไอคอนกระเป๋าเดินทาง / เครื่องบิน */}
+    <View style={styles.emptyIconBg}>
+      <Ionicons name="airplane" size={55} color="#FF6B81" />
+    </View>
+
+    {/* ข้อความเชิญชวน */}
+    <Text style={styles.emptyTitle}>No Trips Yet</Text>
+    <Text style={styles.emptySubtitle}>
+      You haven't planned any trips. Let's start building your next amazing adventure!
+    </Text>
+
+    {/* ปุ่มสำหรับไปสร้างทริป (เปลี่ยน Path ได้ตามต้องการ) */}
+    <View style={styles.emptyButtonGroup}>
+      {/* ปุ่มที่ 1: Create Trip (ปุ่มหลัก) */}
+      <TouchableOpacity 
+        onPress={() => router.push('/home')} // เปลี่ยนเป็น Path สร้างทริป
+        activeOpacity={0.8}
+        style={styles.emptyButtonWrapper}
+      >
+        <LinearGradient
+          colors={['#FFA0B4', '#FF526C']} 
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.emptyButtonGradient}
+        >
+          <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+          <Text style={styles.emptyButtonText}>Create Trip</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* ปุ่มที่ 2: Join Trip (ปุ่มรอง) */}
+      <TouchableOpacity 
+        onPress={() => router.push('/join')} // เปลี่ยนเป็น Path หน้า Join
+        activeOpacity={0.8}
+        style={styles.emptyJoinWrapper}
+      >
+        <Ionicons name="enter-outline" size={20} color="#FF526C" />
+        <Text style={styles.emptyJoinText}>Join Trip</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
+
 export default function TripListScreen() {
   const db = useSQLiteContext();
-
   const [search, setSearch] = useState('');
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
   const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
 
   useFocusEffect(
   useCallback(() => {
     const fetchTrips = async () => {
+      setLoading(true);
       try {
         const token = await AsyncStorage.getItem('access_token');
         console.log('Token from AsyncStorage:', token);
         if (!token) {
-          setError('Token not found');
-          setLoading(false);
-          return;
-        }
+            setIsGuest(true);
+            setLoading(false);
+            return;
+          }
 
+        setIsGuest(false);
         const res = await axios.get(`${API_URL}/trip_plan`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -92,6 +141,7 @@ export default function TripListScreen() {
       }
 
     setLoading(false);
+
       } catch (err: any) {
         console.log('Online fetch failed, trying SQLite...', err.message);
         try{
@@ -157,6 +207,47 @@ export default function TripListScreen() {
       ]
     );
   };
+
+  if (isGuest) {
+    return (
+      <>
+        <View style={styles.guestContainer}>
+          {/* วงกลมตกแต่งสไตล์มินิมอลญี่ปุ่น */}
+          <View style={styles.sakuraCircle1} />
+          <View style={styles.sakuraCircle2} />
+
+          {/* ไอคอนสำหรับหน้าทริป */}
+          <View style={styles.guestIconBg}>
+            <Ionicons name="map" size={60} color="#FF6B81" />
+          </View>
+
+          {/* ข้อความเชิญชวน */}
+          <Text style={styles.guestTitle}>Unlock Your Trips</Text>
+          <Text style={styles.guestSubtitle}>
+            Log in or sign up to create, save, and manage your amazing travel plans.
+          </Text>
+
+          {/* ปุ่ม Login Gradient */}
+          <TouchableOpacity 
+            onPress={() => router.push('/Login')}
+            activeOpacity={0.8}
+            style={styles.guestButtonWrapper}
+          >
+            <LinearGradient
+              colors={['#FFA0B4', '#FF526C']} 
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.guestLoginGradient}
+            >
+              <Ionicons name="log-in-outline" size={24} color="#FFF" />
+              <Text style={styles.guestLoginText}>Log In / Sign Up</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  }
+  
 
 
   const filteredTrips = Array.isArray(trips)
@@ -231,7 +322,7 @@ export default function TripListScreen() {
           </View>
         </View>
         {loading ? (
-          <ActivityIndicator />
+          <TripListSkeleton />
         ) : error ? (
           <Text style={styles.errorText}>{error}</Text>
         ) : (
@@ -239,7 +330,8 @@ export default function TripListScreen() {
             data={filteredTrips}
             keyExtractor={(item) => item.plan_id.toString()}
             renderItem={renderItem}
-            ListEmptyComponent={<Text>ไม่พบทริป</Text>}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<EmptyTripState router={router} />}
           />
         )}
       </View>
@@ -339,6 +431,169 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: 'red',
     marginTop: 20,
+  },
+  // --- Guest State Styles (Sakura Theme) ---
+  guestContainer: {
+    flex: 1,
+    backgroundColor: '#FFF5F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 30,
+    position: 'relative', 
+    overflow: 'hidden',
+  },
+  sakuraCircle1: {
+    position: 'absolute',
+    top: -40,
+    right: -30,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#FFE3E8',
+    opacity: 0.6,
+  },
+  sakuraCircle2: {
+    position: 'absolute',
+    bottom: 40,
+    left: -50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#FFD1DC',
+    opacity: 0.5,
+  },
+  guestIconBg: {
+    width: 130,
+    height: 130,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 65,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+    shadowColor: '#FF6B81',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  guestTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#4A3B3D',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  guestSubtitle: {
+    fontSize: 15,
+    color: '#7A6B6D',
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 24,
+    paddingHorizontal: 15,
+  },
+  guestButtonWrapper: {
+    borderRadius: 30,
+    shadowColor: '#FF526C',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  guestLoginGradient: {
+    flexDirection: 'row',
+    paddingVertical: 16,
+    paddingHorizontal: 36,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  guestLoginText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  // --- Empty State Styles (Sakura Theme) ---
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyIconBg: {
+    width: 110,
+    height: 110,
+    backgroundColor: '#FFF5F7',
+    borderRadius: 55,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#FF6B81',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#4A3B3D',
+    marginBottom: 10,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    color: '#7A6B6D',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 22,
+    paddingHorizontal: 10,
+  },
+  emptyButtonWrapper: {
+    borderRadius: 25,
+    shadowColor: '#FF526C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  emptyButtonGradient: {
+    flexDirection: 'row',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  emptyButtonGroup: {
+    flexDirection: 'row',
+    gap: 12, // ระยะห่างระหว่างปุ่ม
+    marginTop: 10,
+  },
+  emptyJoinWrapper: {
+    flexDirection: 'row',
+    paddingVertical: 12, // ขอบต้องบางกว่า Gradient นิดนึงเพราะมี Border
+    paddingHorizontal: 18,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#FF526C',
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  emptyJoinText: {
+    color: '#FF526C',
+    fontSize: 15,
+    fontWeight: 'bold',
   },
   
 });

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, 
-  ActivityIndicator, Alert, Dimensions, Platform 
+  ActivityIndicator, Alert, Dimensions, Platform,
+  UIManager, LayoutAnimation, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -14,6 +15,11 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 // Setup dayjs
 dayjs.extend(isBetween);
 dayjs.extend(customParseFormat);
+
+// เปิดใช้งาน LayoutAnimation สำหรับ Android ให้การขยายการ์ดดูสมูท
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface FloatingChatProps {
   planId: number;
@@ -35,6 +41,113 @@ type ItineraryDay = {
   schedule: ScheduleItem[];
 };
 
+export interface RouteOption {
+  title: string;
+  detail: string[];
+  fare: string;
+  distance: string;
+}
+
+// ==========================================
+// Component ย่อย: สำหรับแสดงการ์ดเส้นทางแบบกดขยายได้
+// ==========================================
+function RouteSuggestion({ options }: { options: RouteOption[] }) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  const toggleExpand = (index: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedIndex(expandedIndex === index ? null : index);
+  };
+
+  if (!options || options.length === 0) return null;
+
+  return (
+    <View style={routeStyles.container}>
+      <Text style={routeStyles.headerTitle}>✨ Best Routes Found</Text>
+      
+      {options.map((option, index) => {
+        const isExpanded = expandedIndex === index;
+        return (
+          <View key={index} style={[routeStyles.card, isExpanded && routeStyles.cardExpanded]}>
+            {/* ส่วนหัวของการ์ด */}
+            <TouchableOpacity 
+              style={routeStyles.cardHeader} 
+              onPress={() => toggleExpand(index)}
+              activeOpacity={0.7}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={routeStyles.optionTitle}>{option.title}</Text>
+                <View style={routeStyles.infoRow}>
+                  <Text style={routeStyles.infoText}>{option.fare}</Text>
+                  <Text style={routeStyles.infoDot}> • </Text>
+                  <Text style={routeStyles.infoText}>{option.distance}</Text>
+                </View>
+              </View>
+              <Ionicons 
+                name={isExpanded ? "chevron-up" : "chevron-down"} 
+                size={20} 
+                color="#666" 
+              />
+            </TouchableOpacity>
+
+            {/* ส่วนรายละเอียด (แสดงเมื่อถูกกดขยาย) */}
+            {isExpanded && (
+              <View style={routeStyles.cardBody}>
+                <View style={routeStyles.timelineLine} />
+                {option.detail.map((step, stepIdx) => (
+                  <View key={stepIdx} style={routeStyles.stepContainer}>
+                    <View style={routeStyles.stepDot} />
+                    <Text style={routeStyles.stepText}>{step}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const testLocation = async () => {
+  try {
+    console.log("--- 📍 เริ่มทดสอบระบบ Location ---");
+    
+    // ขั้นตอนที่ 1: เช็ค Permission
+    console.log("1. กำลังขอ Permission...");
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    console.log("-> สถานะ Permission:", status);
+
+    if (status !== 'granted') {
+      console.log("❌ จบการทำงาน: ผู้ใช้ไม่อนุญาต (Permission Denied)");
+      return;
+    }
+
+    // ขั้นตอนที่ 2: ดึงพิกัด
+    console.log("2. กำลังดึงพิกัด (อาจจะใช้เวลา 2-5 วินาที)...");
+    
+    // ทริคสำหรับ Emulator: ต้องใช้ Accuracy.Balanced หรือ Low 
+    // ถ้าใช้ High มันจะหาเสาสัญญาณจริงซึ่งใน Emulator ไม่มี ทำให้เกิด Timeout/Error
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced, 
+    });
+
+    // ขั้นตอนที่ 3: แสดงผล
+    console.log("✅ ดึงพิกัดสำเร็จ!");
+    console.log("-> Latitude (ละติจูด):", location.coords.latitude);
+    console.log("-> Longitude (ลองจิจูด):", location.coords.longitude);
+    console.log("-----------------------------------");
+
+  } catch (error) {
+    // ถ้ามันพัง มันจะเด้งมาเข้าบล็อกนี้ครับ
+    console.log("❌ เกิด Error ระหว่างดึงพิกัด:");
+    console.error(error);
+  }
+};
+
+// ==========================================
+// Main Component: FloatingChat
+// ==========================================
 export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,17 +155,16 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
   const [nextActivity, setNextActivity] = useState<ScheduleItem | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // testLocation(); // เรียกฟังก์ชันทดสอบพิกัดเมื่อคอมโพเนนต์โหลด (สามารถเอาออกได้หลังจากทดสอบเสร็จ)
+
   // ฟังก์ชันหลักเมื่อกดปุ่ม
   const handlePress = async () => {
     if (isOpen) {
-      // ถ้าเปิดอยู่ ให้ปิด
       setIsOpen(false);
       setRouteInfo(null);
       setErrorMsg(null);
       return;
     }
-
-    // ถ้าปิดอยู่ ให้เปิดและเริ่มคำนวณ
     setIsOpen(true);
     await calculateRoute();
   };
@@ -63,88 +175,170 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
     setRouteInfo(null);
 
     try {
+      // ==========================================
+      // 🚧 MOCK DATA MODE (จำลองข้อมูลเพื่อทำ UI) 🚧
+      // ==========================================
+      
+      // 1. จำลองเวลาโหลด 1.5 วินาทีให้ดูสมจริง
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // 2. Mock ข้อมูลสถานที่เป้าหมาย (ให้ UI ส่วนบนแสดงผลได้)
+      setNextActivity({
+        time: '10:00',
+        activity: 'Osaka Castle',
+        need_location: true,
+        specific_location_name: 'Osaka Castle (ปราสาทโอซาก้า)',
+        lat: 34.6872571,
+        lng: 135.5258546,
+      });
+
+      // 3. Mock ข้อมูลเส้นทางทั้ง 5 แบบจาก Routing.md
+      const mockRouteData = [
+          {
+              "title": "🚇 Option 1: Quickest Route (⏱ 33 min, 🔁 1 transfer)",
+              "detail": [
+                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 6, Transfer time 3 min)",
+                  "🚇 Osaka Metro Midosuji Line: Honmachi → Umeda (4 min, 2.2 km, Get off at station 2)",
+                  "🚶 Walk from Umeda Station (Exit 5) to Goal (13 min, 1.03 km)"
+              ],
+              "fare": "💴 Total Fare: ~¥240",
+              "distance": "📏 Distance: 5.25 km"
+          },
+          {
+              "title": "🚶 Option 2: All Walking & Subway (⏱ 36 min, 🔁 0 transfers)",
+              "detail": [
+                  "🚶 Walk from Start to Tanimachi 4-chome Station (6 min, 497 m, Exit 2, Line T23)",
+                  "🚇 Osaka Metro Tanimachi Line: Tanimachi 4-chome → Higashi Umeda (7 min, 3.9 km, Get off at station 1)",
+                  "🚶 Walk from Higashi Umeda Station (Exit 1) to Goal (20 min, 1.35 km)"
+              ],
+              "fare": "💴 Total Fare: ~¥240",
+              "distance": "📏 Distance: 5.75 km"
+          },
+          {
+              "title": "🚇 Option 3: Two Metro Lines (⏱ 37 min, 🔁 1 transfer)",
+              "detail": [
+                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 1, Transfer time 4 min)",
+                  "🚇 Osaka Metro Yotsubashi Line: Honmachi → Nishi Umeda (4 min, 2.2 km, Get off at station 1)",
+                  "🚶 Walk from Nishi Umeda Station (Exit 5) to Goal (17 min, 1.13 km)"
+              ],
+              "fare": "💴 Total Fare: ~¥240",
+              "distance": "📏 Distance: 5.35 km"
+          },
+          {
+              "title": "🚃 Option 4: Metro & JR Line (⏱ 41 min, 🔁 1 transfer)",
+              "detail": [
+                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Morinomiya (2 min, 1.3 km, Get off at station 1, Transfer time 3 min)",
+                  "🚆 JR Osaka Loop Line: Morinomiya → Osaka Station (12 min, 5.9 km, Get off at station front side)",
+                  "🚶 Walk from Osaka Station (Umekita Underground Exit) to Goal (14 min, 924 m)"
+              ],
+              "fare": "💴 Total Fare: ~¥370",
+              "distance": "📏 Distance: 8.45 km"
+          },
+          {
+              "title": "🚃 Option 5: Metro & Hankyu Line (⏱ 42 min, 🔁 2 transfers)",
+              "detail": [
+                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 6, Transfer time 3 min)",
+                  "🚇 Osaka Metro Midosuji Line: Honmachi → Umeda (4 min, 2.2 km, Get off at stations 2 and 4)",
+                  "🚶 Walk from Umeda Station to Osaka Umeda Hankyu Line (4 min, 0 m)",
+                  "🚆 Hankyu Kobe Main Line: Osaka Umeda → Nakatsu (2 min, 900 m, Get off at station back side)",
+                  "🚶 Walk from Nakatsu Station to Goal (11 min, 756 m)"
+              ],
+              "fare": "💴 Total Fare: ~¥410",
+              "distance": "📏 Distance: 5.88 km"
+          }
+      ];
+
+      setRouteInfo(mockRouteData);
+
+
       // 1. ขอ Permission และหาตำแหน่งปัจจุบัน
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Permission to access location was denied');
-      }
+    //   const { status } = await Location.requestForegroundPermissionsAsync();
+    //   if (status !== 'granted') {
+    //     throw new Error('Permission to access location was denied');
+    //   }
 
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const origin = `${currentLocation.coords.latitude},${currentLocation.coords.longitude}`;
+    //   const currentLocation = await Location.getCurrentPositionAsync({
+    //     accuracy: Location.Accuracy.Balanced,
+    //   });
+    //   const origin = `${currentLocation.coords.latitude},${currentLocation.coords.longitude}`;
 
-      // 2. ดึงข้อมูล Itinerary (Plan)
-      const token = await AsyncStorage.getItem('access_token');
-      const res = await axios.get(`${apiBaseUrl}/trip_schedule/${planId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+    //   // 2. ดึงข้อมูล Itinerary (Plan)
+    //   const token = await AsyncStorage.getItem('access_token');
+    //   const res = await axios.get(`${apiBaseUrl}/trip_schedule/${planId}`, {
+    //     headers: { Authorization: `Bearer ${token}` }
+    //   });
 
-      const itineraryData = res.data?.payload?.itinerary;
-      if (!itineraryData || !Array.isArray(itineraryData)) {
-        throw new Error('ไม่พบข้อมูลตารางการเดินทาง');
-      }
+    //   const itineraryData = res.data?.payload?.itinerary;
+    //   if (!itineraryData || !Array.isArray(itineraryData)) {
+    //     throw new Error('ไม่พบข้อมูลตารางการเดินทาง');
+    //   }
 
-      // 3. หา Destination (กิจกรรมถัดไปที่มี Location)
-      const target = findNextLocation(itineraryData);
+    //   // 3. หา Destination (กิจกรรมถัดไปที่มี Location)
+    //   const target = findNextLocation(itineraryData);
       
-      if (!target) {
-        throw new Error('ไม่พบกิจกรรมถัดไปที่มีสถานที่ระบุไว้');
-      }
+    //   if (!target) {
+    //     throw new Error('ไม่พบกิจกรรมถัดไปที่มีสถานที่ระบุไว้');
+    //   }
 
-      setNextActivity(target);
+    //   setNextActivity(target);
 
-      // 4. เรียก API Route Summarize
-      const destination = `${target.lat},${target.lng}`;
-      console.log(`Routing: ${origin} -> ${destination} (${target.activity})`);
+    //   // 4. เรียก API Route Summarize
+    //   const destination = `${target.lat},${target.lng}`;
+    //   console.log(`Routing: ${origin} -> ${destination} (${target.activity})`);
 
-      const route = {
-        start : origin,
-        goal : destination,
-        start_time : dayjs().format('YYYY-MM-DDTHH:mm:ss') 
-      }
+    //   const route = {
+    //     start : origin,
+    //     goal : destination,
+    //     start_time : dayjs().format('YYYY-MM-DDTHH:mm:ss') 
+    //   }
 
-     const routeRawRes = await axios.get(`${apiBaseUrl}/route`,
-      {
-        params:  route ,
-        headers: { Authorization: `Bearer ${token}` }
-      }
-    );
+    //  const routeRawRes = await axios.post(`${apiBaseUrl}/route`,
+    //   route,
+    //   {
+    //     headers: { Authorization: `Bearer ${token}` }
+    //   }
+    // );
       
-      // เช็คว่าได้เส้นทางมาไหม
-      if (!routeRawRes.data || routeRawRes.data.error) {
-          throw new Error('ไม่พบเส้นทาง หรือ API มีปัญหา');
-      }
-
+    //   if (!routeRawRes.data || routeRawRes.data.error) {
+    //       throw new Error('ไม่พบเส้นทาง หรือ API มีปัญหา');
+    //   }
       
-      // 3. ✅ ส่งผลลัพธ์ที่ได้ไปให้ AI สรุป (POST /route/summarize)
-      // ต้องส่งให้ตรงกับ Schema: { route: Dict }
-      const summarizeRes = await axios.post(`${apiBaseUrl}/route/summarize`, 
-        { route: routeRawRes.data }, // ส่ง JSON ก้อนใหญ่ไปใส่ใน key 'route'
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    //   // 3. ✅ ส่งผลลัพธ์ที่ได้ไปให้ AI สรุป (POST /route/summarize)
+    //   const summarizeRes = await axios.post(`${apiBaseUrl}/route/summarize`, 
+    //     { route: routeRawRes.data },
+    //     { headers: { Authorization: `Bearer ${token}` } }
+    //   );
 
-      setRouteInfo(summarizeRes.data);
+    //   setRouteInfo(summarizeRes.data);
 
     } catch (err: any) {
       console.error("Route Error:", err);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced, // ลดความแม่นยำลงมาที่ระดับกลาง (สำคัญมากสำหรับ Emulator)
+        });
+
+      console.log("พิกัดที่ได้:", location.coords);
+      console.log("Location Permission Status:", status);
+      if (status !== 'granted') {
+        throw new Error('Permission to access location was denied');
+      }
       setErrorMsg(err.message || "เกิดข้อผิดพลาดในการคำนวณเส้นทาง");
     } finally {
       setLoading(false);
     }
   };
 
-  // Logic การหากิจกรรมถัดไปตามโจทย์
   const findNextLocation = (itinerary: ItineraryDay[]): ScheduleItem | null => {
-    const now = dayjs(); // เวลาปัจจุบัน
-    // const now = dayjs("2025-12-11 09:00"); // ปลดล็อกเพื่อ Test เวลา
-
-    // แปลง Itinerary ให้เป็น List เดียวที่เรียงตามเวลา เพื่อหาง่ายๆ
+    const now = dayjs(); 
     let allActivities: (ScheduleItem & { fullDateTime: dayjs.Dayjs })[] = [];
 
     itinerary.forEach(day => {
       day.schedule.forEach(item => {
-        // รวม Date + Time เป็น Object เดียว
         const itemDateTime = dayjs(`${day.date} ${item.time}`, "YYYY-MM-DD HH:mm");
         if (itemDateTime.isValid()) {
           allActivities.push({ ...item, fullDateTime: itemDateTime });
@@ -152,19 +346,13 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
       });
     });
 
-    // เรียงตามเวลา
     allActivities.sort((a, b) => a.fullDateTime.diff(b.fullDateTime));
 
-    // วนลูปหาตัวแรกที่ เวลา >= ปัจจุบัน และ need_location = true
     for (const item of allActivities) {
-      // เงื่อนไข 1: เวลาต้องเป็นอนาคต หรือ ปัจจุบัน (เผื่อเลทนิดหน่อยได้ เช่น -10 นาที)
-      // เงื่อนไข 2: ต้องมีพิกัด (lat, lng)
-      // เงื่อนไข 3: need_location ต้องเป็น true
       if (item.fullDateTime.isAfter(now.subtract(10, 'minute')) && item.need_location && item.lat && item.lng) {
         return item;
       }
     }
-
     return null;
   };
 
@@ -197,34 +385,11 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
               
               <View style={styles.divider} />
               
-              {/* ✅ แก้ไขส่วนแสดงผล Route ให้รองรับ Array แบบใหม่ */}
+              {/* ✅ แทนที่ส่วนแสดงผลเดิมด้วย RouteSuggestion พร้อม ScrollView กันล้น */}
               {Array.isArray(routeInfo) && routeInfo.length > 0 ? (
-                <View>
-                  {/* แสดงหัวข้อ Option แรก (เช่น Fastest) */}
-                  <Text style={[styles.routeDetail, { fontWeight: 'bold', color: '#2563eb', marginBottom: 4 }]}>
-                     {routeInfo[0].title}
-                  </Text>
-
-                  {/* แสดงระยะทางและค่าโดยสาร */}
-                  <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
-                      <Text style={[styles.routeDetail, {fontSize: 12}]}>{routeInfo[0].distance}</Text>
-                      <Text style={[styles.routeDetail, {fontSize: 12}]}>{routeInfo[0].fare}</Text>
-                  </View>
-
-                  <View style={{ height: 6 }} />
-
-                  {/* แสดงขั้นตอนการเดินทาง 3 บรรทัดแรก */}
-                  {routeInfo[0].detail.slice(0, 3).map((step: string, idx: number) => (
-                    <Text key={idx} style={[styles.routeDetail, { fontSize: 12, color: '#555' }]} numberOfLines={1}>
-                      {step}
-                    </Text>
-                  ))}
-                  
-                  {/* ถ้ามีมากกว่า 3 ขั้นตอน ให้มี ... */}
-                  {routeInfo[0].detail.length > 3 && (
-                    <Text style={{ fontSize: 10, color: '#999', textAlign: 'center' }}>...</Text>
-                  )}
-                </View>
+                <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+                  <RouteSuggestion options={routeInfo} />
+                </ScrollView>
               ) : (
                 <Text style={styles.infoText}>ไม่พบข้อมูลเส้นทาง</Text>
               )}
@@ -251,19 +416,22 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
   );
 }
 
+// ==========================================
+// Styles
+// ==========================================
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 100,
     right: 20,
-    alignItems: 'flex-end', // จัดให้ Bubble อยู่ชิดขวาตรงกับปุ่ม
-    zIndex: 9999, // ให้ลอยอยู่บนสุด
+    alignItems: 'flex-end',
+    zIndex: 9999,
   },
   fab: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FF6B6B', // สีปุ่มหลัก
+    backgroundColor: '#FF6B6B',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -279,8 +447,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16, // ระยะห่างจากปุ่ม FAB
-    width: 280,
+    marginBottom: 16,
+    width: 300, // ปรับให้กว้างขึ้นนิดนึงเพื่อให้เห็นเส้นทางชัดเจน
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -327,16 +495,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#eee',
-    marginVertical: 8,
-  },
-  routeDetail: {
-    fontSize: 14,
-    color: '#444',
-    marginBottom: 2,
-  },
-  bold: {
-    fontWeight: 'bold',
-    color: '#000',
+    marginVertical: 4,
   },
   errorText: {
     color: 'red',
@@ -348,4 +507,93 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   }
+});
+
+const routeStyles = StyleSheet.create({
+  container: {
+    width: '100%',
+    paddingVertical: 4,
+  },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#4A3B3D',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+    overflow: 'hidden',
+  },
+  cardExpanded: {
+    borderColor: '#FF6B6B', // เปลี่ยนเป็นสีแดง/ชมพูให้เข้ากับธีม
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#FAFAFA',
+  },
+  optionTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoText: {
+    fontSize: 11,
+    color: '#666',
+  },
+  infoDot: {
+    fontSize: 11,
+    color: '#ccc',
+  },
+  cardBody: {
+    padding: 12,
+    paddingLeft: 20,
+    backgroundColor: '#fff',
+    position: 'relative',
+  },
+  timelineLine: {
+    position: 'absolute',
+    left: 24, 
+    top: 20,
+    bottom: 20,
+    width: 2,
+    backgroundColor: '#eee',
+  },
+  stepContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    position: 'relative',
+    alignItems: 'flex-start',
+  },
+  stepDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF6B6B',
+    marginTop: 4,
+    marginRight: 10,
+    zIndex: 1,
+  },
+  stepText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#444',
+    lineHeight: 18,
+  },
 });

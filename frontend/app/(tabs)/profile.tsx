@@ -7,18 +7,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { StyleSheet } from 'react-native';
 import { format } from 'date-fns';
-import { th, tr } from 'date-fns/locale';
+import { enUS } from 'date-fns/locale';
 import LogoutButton from '@/components/ui/Logoutbutton';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { API_URL } from '@/api.js'
 import FinishedTripCard from '@/components/ui/profile/FinishedTripCard';
 import { Ionicons } from '@expo/vector-icons';
-import dayjs from 'dayjs';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import  Avatar  from '@/components/ui/profile/Avatar';
 import * as ImagePicker from 'expo-image-picker';
+import ProfileSkeleton from '@/components/ui/profile/ProfileSkeleton';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const CLOUD_NAME = "dqghrasqe"; 
 const UPLOAD_PRESET = "TabiGo";
@@ -34,6 +34,7 @@ export default function ProfileScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [userData, setUserData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
 
 
@@ -41,11 +42,7 @@ export default function ProfileScreen() {
     try {
       const token = await AsyncStorage.getItem('access_token');
       console.log("FetchProfile with token:", token);
-
-      if (!token) {
-        Alert.alert('Unauthorized', 'Please log in again');
-        return;
-      }
+      setIsLoading(true);
 
       const res = await axios.get(`${API_URL}/user`, {
         headers: {
@@ -71,8 +68,9 @@ export default function ProfileScreen() {
       console.log('Fetch user error:', err.response?.data || err.message);
       if (err.response?.status === 401) {
         await AsyncStorage.removeItem('access_token');
-        router.push('/Login')
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -84,7 +82,7 @@ export default function ProfileScreen() {
   );
 
   const handleLogoutSuccess = () => {
-    router.push('/Login') // ไปหน้า Login หลัง logout สำเร็จ
+    router.push('/Login') // Go to Login page after logout success
   };
 
   const uploadToCloudinary = async (uri: string) => {
@@ -111,22 +109,22 @@ export default function ProfileScreen() {
     // 2.1 ขอสิทธิ์และเลือกรูป
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'ขออนุญาตเข้าถึงอัลบั้มรูปครับ');
+      Alert.alert('Permission needed', 'Permission needed to access media library');
       return;
     }
 
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images', // แก้เป็น string ตามเวอร์ชันใหม่
+      mediaTypes: 'images', // Must use string in new version
       allowsEditing: true,
-      aspect: [1, 1],       // รูปโปรไฟล์ควรเป็นจัตุรัส
-      quality: 0.6,         // ลดคุณภาพลงหน่อยจะได้เร็ว
+      aspect: [1, 1],       // Profile picture should be square
+      quality: 0.6,         // Reduce quality for faster upload
     });
 
     if (result.canceled) return;
 
-    // 2.2 เริ่มอัปโหลด
+    // 2.2 Start uploading
     try {
-      setUploading(true); // เริ่มหมุนติ้วๆ
+      setUploading(true); // Show loading spinner
       const localUri = result.assets[0].uri;
 
       const newImageUrl = await uploadToCloudinary(localUri);
@@ -139,19 +137,19 @@ export default function ProfileScreen() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // C. อัปเดตหน้าจอทันที (ไม่ต้องรอโหลดใหม่)
+      // C. Update screen immediately (no need to reload)
       setUser((prev: any) => ({
         ...prev,
         image: newImageUrl 
       }));
 
-      Alert.alert("Success", "อัปเดตรูปโปรไฟล์เรียบร้อย!");
+      Alert.alert("Success", "Profile picture updated successfully!");
 
     } catch (error) {
       console.error("Update profile failed:", error);
-      Alert.alert("Error", "อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่");
+      Alert.alert("Error", "Failed to upload image, please try again");
     } finally {
-      setUploading(false); // หยุดหมุน
+      setUploading(false); // Stop loading spinner
     }
   };
 
@@ -162,47 +160,47 @@ export default function ProfileScreen() {
       console.log("User ID:", user?.customer_id);
 
       if (!token) {
-        Alert.alert("Error", "ไม่พบ Token กรุณา Login ใหม่");
+        Alert.alert("Error", "Token not found, please login again");
         return;
       }
       
       if (!user?.customer_id) {
-        Alert.alert("Error", "ไม่พบข้อมูล User ID");
+        Alert.alert("Error", "User ID not found");
         return;
       }
 
       const payload = {
-        // ส่งเฉพาะข้อมูลที่อนุญาตให้แก้
+        // Send only editable fields
         first_name: tempInfo.first_name,
         last_name: tempInfo.last_name,
         phone_number: tempInfo.phone_number,
         birth_date: tempInfo.birth_date,
       };
 
-      // 2. เรียก API Update
+      // 2. Call API Update
       const res = await axios.put(`${API_URL}/customer/${user.customer_id}`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // 3. อัปเดต State หน้าจอด้วยข้อมูลใหม่จาก Server
+      // 3. Update screen state with new data from server
       setUser(res.data);
-      setTempInfo(res.data); // Reset temp ให้ตรงกับล่าสุด
+      setTempInfo(res.data); // Reset temp to match latest
       setIsEditing(false);
       
-      Alert.alert('สำเร็จ', 'บันทึกข้อมูลเรียบร้อยแล้ว');
+      Alert.alert('Success', 'Profile updated successfully');
 
     } catch (error) {
       console.error("Update profile error:", error);
-      Alert.alert('ผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้');
+      Alert.alert('Error', 'Unable to save profile');
     }
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios'); // iOS ให้แสดงค้างไว้จนกว่าจะกด Done (ถ้ามีปุ่ม) หรือปิดเอง
+    setShowDatePicker(Platform.OS === 'ios'); // iOS keeps picker visible until Done button or dismiss
     if (selectedDate) {
         setTempInfo({ ...tempInfo, birth_date: selectedDate.toISOString() });
         
-        // สำหรับ Android เลือกปุ๊ปปิดปั๊ป
+        // For Android, close picker after selection
         if (Platform.OS === 'android') {
             setShowDatePicker(false);
         }
@@ -217,13 +215,47 @@ export default function ProfileScreen() {
     setIsEditing(false);
   };
 
+  if (isLoading) {
+    return <ProfileSkeleton />;
+  }
+
 
   if (!user) {
     return (
-      <View style={styles.container}><Text>กรุณาเข้าสู่ระบบ</Text>
-      <TouchableOpacity onPress={() => router.push('/Login')}>
-        <Text>🔑 ไปหน้า Login</Text>
-      </TouchableOpacity></View>
+      <View style={styles.guestContainer}>
+        {/* Decorative Background Elements (วงกลมตกแต่งสไตล์มินิมอลญี่ปุ่น) */}
+        <View style={styles.sakuraCircle1} />
+        <View style={styles.sakuraCircle2} />
+
+        {/* Large Profile Icon */}
+        <View style={styles.guestIconBg}>
+          <Ionicons name="person" size={65} color="#FF6B81" />
+        </View>
+
+        {/* Invitation Text */}
+        <Text style={styles.guestTitle}>Unlock Your Profile</Text>
+        <Text style={styles.guestSubtitle}>
+          Log in or sign up to save your travel plans, manage your budget, and keep track of your past adventures.
+        </Text>
+
+        {/* Login Button */}
+        <TouchableOpacity 
+          onPress={() => router.push('/Login')}
+          activeOpacity={0.8}
+          style={styles.guestButtonWrapper}
+        >
+          <LinearGradient
+            // 🌸 Gradient from left to right (light pink -> pinkish red)
+            colors={['#FFA0B4', '#FF526C']} 
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.guestLoginGradient}
+          >
+            <Ionicons name="log-in-outline" size={24} color="#FFF" />
+            <Text style={styles.guestLoginText}>Log In / Sign Up</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
     );
   }
 
@@ -232,7 +264,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>โปรไฟล์ของฉัน</Text>
+        <Text style={styles.headerText}>My Profile</Text>
         <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
           <Text style={styles.editIcon}>{isEditing ? '✕' : '✏️'}</Text>
         </TouchableOpacity>
@@ -249,12 +281,12 @@ export default function ProfileScreen() {
               size={110} 
             />
 
-            {/* ✅ ปุ่มไอคอนกล้อง (Badge) */}
+            {/* ✅ Camera icon button (Badge) */}
             <View style={{
               position: 'absolute',
               bottom: 0,
               right: 0,
-              backgroundColor: '#FF6B6B', // สีธีม
+              backgroundColor: '#FF6B6B', // Theme color
               padding: 8,
               borderRadius: 20,
               borderWidth: 2,
@@ -270,13 +302,13 @@ export default function ProfileScreen() {
             <View style={{flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 10}}>
                 <TextInput
                   style={[styles.nameInput, {flex:1}]}
-                  placeholder="ชื่อ"
+                  placeholder="First Name"
                   value={tempInfo.first_name}
                   onChangeText={val => setTempInfo({ ...tempInfo, first_name: val })}
                 />
                 <TextInput
                   style={[styles.nameInput, {flex:1}]}
-                  placeholder="นามสกุล"
+                  placeholder="Last Name"
                   value={tempInfo.last_name}
                   onChangeText={val => setTempInfo({ ...tempInfo, last_name: val })}
                 />
@@ -286,20 +318,20 @@ export default function ProfileScreen() {
           )}
 
           <Text style={styles.joinDate}>
-            สมาชิกตั้งแต่ {user.createdAt ? format(new Date(user.createdAt), "d MMM yyyy", { locale: th }) : "-"}
+            Member since {user.createdAt ? format(new Date(user.createdAt), "d MMM yyyy", { locale: enUS }) : "-"}
           </Text>
 
-          <Text style={styles.sectionTitle}>ข้อมูลติดต่อ</Text>
+          <Text style={styles.sectionTitle}>Contact Information</Text>
           
-          {/* 1. อีเมล (มักจะไม่ให้แก้ หรือถ้าแก้ต้องมี flow ยืนยัน) */}
+          {/* 1. Email (usually not editable or requires verification) */}
           <View style={styles.inputGroup}>
-             <Text style={styles.label}>อีเมล</Text>
+             <Text style={styles.label}>Email</Text>
              <Text style={[styles.inputText, { color: '#888' }]}>{user.email}</Text>
           </View>
 
-          {/* 2. เบอร์โทรศัพท์ (ใช้ field: phone_number) */}
+          {/* 2. Phone number (using field: phone_number) */}
           <View style={styles.inputGroup}>
-             <Text style={styles.label}>เบอร์โทรศัพท์</Text>
+             <Text style={styles.label}>Phone Number</Text>
              {isEditing ? (
                 <TextInput
                   style={styles.input}
@@ -312,50 +344,50 @@ export default function ProfileScreen() {
              )}
           </View>
 
-          {/* 3. วันเกิด (ใช้ field: birth_date) */}
+          {/* 3. Birth date (using field: birth_date) */}
           <View style={styles.row}>
-          <Text style={styles.label}>วันเกิด</Text>
+          <Text style={styles.label}>Birth Date</Text>
           {isEditing ? (
             <>
-              {/* ✅ 4. เปลี่ยน TextInput เป็น TouchableOpacity เพื่อเปิด Picker */}
+              {/* ✅ 4. Switch TextInput to TouchableOpacity to open date picker */}
               <TouchableOpacity onPress={() => setShowDatePicker(true)}>
                 <View style={[styles.input, { justifyContent: 'center' }]}>
                     <Text style={{ color: tempInfo.birth_date ? '#333' : '#aaa' }}>
                         {tempInfo.birth_date 
-                            ? format(new Date(tempInfo.birth_date), 'dd MMMM yyyy', { locale: th }) 
-                            : 'เลือกวันเกิด'}
+                            ? format(new Date(tempInfo.birth_date), 'dd MMMM yyyy', { locale: enUS }) 
+                            : 'Select Birth Date'}
                     </Text>
                 </View>
               </TouchableOpacity>
 
-              {/* ✅ 5. แสดง DateTimePicker */}
+              {/* ✅ 5. Display DateTimePicker */}
               {showDatePicker && (
                 <DateTimePicker
                     value={currentBirthDate}
                     mode="date"
-                    display="default" // หรือ "spinner"
+                    display="default" // or "spinner"
                     onChange={onDateChange}
-                    maximumDate={new Date()} // ห้ามเลือกวันในอนาคต
+                    maximumDate={new Date()} // Cannot select future dates
                 />
               )}
             </>
           ) : (
             <Text style={styles.value}>
               {user.birth_date 
-                ? format(new Date(user.birth_date), 'dd MMMM yyyy', { locale: th }) 
+                ? format(new Date(user.birth_date), 'dd MMMM yyyy', { locale: enUS }) 
                 : '-'}
             </Text>
           )}
         </View>
 
-          {/* ปุ่ม Save/Cancel */}
+          {/* Save/Cancel buttons */}
           {isEditing && (
             <View style={styles.buttonGroup}>
               <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={handleSave}>
-                <Text style={styles.buttonText}>บันทึก</Text>
+                <Text style={styles.buttonText}>Save</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={handleCancel}>
-                <Text style={[styles.buttonText, {color: '#333'}]}>ยกเลิก</Text>
+                <Text style={[styles.buttonText, {color: '#333'}]}>Cancel</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -367,7 +399,7 @@ export default function ProfileScreen() {
           style={styles.tripHeader} 
           onPress={() => setShowTrips(!showTrips)}
         >
-          <Text style={styles.tripHeaderText}>ประวัติการเดินทาง</Text>
+          <Text style={styles.tripHeaderText}>Travel History</Text>
           <Ionicons name={showTrips ? "chevron-up" : "chevron-down"} size={20} color="#666" />
         </TouchableOpacity>
         
@@ -377,8 +409,8 @@ export default function ProfileScreen() {
               user.ownedTrips.map((trip: any) => {
                 const startDate = new Date(trip.start_plan_date);
                 const endDate = new Date(trip.end_plan_date);
-                const isFinished = new Date() > endDate; // เช็คว่าทริปจบหรือยัง
-                const formattedDate = `${format(startDate, 'd MMM', { locale: th })} - ${format(endDate, 'd MMM yyyy', { locale: th })}`;
+                const isFinished = new Date() > endDate; // Check if trip is finished
+                const formattedDate = `${format(startDate, 'd MMM', { locale: enUS })} - ${format(endDate, 'd MMM yyyy', { locale: enUS })}`;
               
                 return (
                   <TouchableOpacity 
@@ -390,7 +422,7 @@ export default function ProfileScreen() {
                         date={formattedDate}
                         budget={trip.budget?.total_budget || 0}
                         people={trip.members?.length ? trip.members.length + 1 : 1}
-                        city="Tokyo, Kyoto" // ถ้ามีข้อมูลเมืองในอนาคตก็ใส่ตรงนี้
+                        city="Tokyo, Kyoto" // Add city data here if available in the future
                     />) : null
                     
                     }
@@ -399,7 +431,7 @@ export default function ProfileScreen() {
                 );
               })
             ) : (
-              <Text style={styles.noTripText}>ยังไม่มีประวัติการเดินทาง</Text>
+              <Text style={styles.noTripText}>No travel history yet</Text>
             )}
           </View>
         )}
@@ -412,7 +444,7 @@ export default function ProfileScreen() {
             
             onPress={() => router.push('/Login')}
           >
-            <Text>🔑 ไปหน้า Login</Text>
+            <Text>🔑 Go to Login</Text>
           </TouchableOpacity>
         )}
     </ScrollView>
@@ -480,10 +512,94 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   joinDate: {
-    fontSize: 12,
+    fontSize: 14,
+    color: '#888',
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  guestContainer: {
+    flex: 1,
+    backgroundColor: '#FFF5F7', // Light pink background (Soft Sakura)
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 30,
+    position: 'relative', 
+    overflow: 'hidden', // Hide circle overflow
+  },
+  sakuraCircle1: {
+    position: 'absolute',
+    top: -40,
+    right: -30,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#FFE3E8', // Medium pink
+    opacity: 0.6,
+  },
+  sakuraCircle2: {
+    position: 'absolute',
+    bottom: 40,
+    left: -50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#FFD1DC', // Darker pink
+    opacity: 0.5,
+  },
+  guestIconBg: {
+    width: 130,
+    height: 130,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 65,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+    // เงาสีชมพูแดง
+    shadowColor: '#FF6B81',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  guestTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#4A3B3D', // สีเทาอมน้ำตาลเข้ม (ดูอบอุ่นกว่าสีดำสนิท)
     marginBottom: 12,
-    color: '#888'
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  guestSubtitle: {
+    fontSize: 15,
+    color: '#7A6B6D', // สีเทาอมชมพูหม่น
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 24,
+    paddingHorizontal: 15,
+  },
+ guestButtonWrapper: {
+    borderRadius: 30,
+    // Add shadow to button wrapper
+    shadowColor: '#FF526C',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  guestLoginGradient: {
+    flexDirection: 'row',
+    paddingVertical: 16,
+    paddingHorizontal: 36,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  guestLoginText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
   sectionTitle: {
     fontSize: 18,
@@ -597,7 +713,6 @@ const styles = StyleSheet.create({
   },
   tripSection: { 
     marginTop: 10, paddingHorizontal: 20, paddingTop: 20, 
-    borderTopWidth: 8, borderTopColor: '#f5f5f5' 
   },
   tripHeader: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 

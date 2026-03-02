@@ -12,6 +12,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { API_URL } from '@/api.js'
 import dayjs from 'dayjs';
 import 'dayjs/locale/en';
+import { LinearGradient } from 'expo-linear-gradient';
+import LottieView from 'lottie-react-native';
+import ApproveAnimation from '@/components/ui/Alert/ApproveAnimation'; // แก้ Path ให้ตรงกับที่คุณเซฟไว้
+import WrongAnimation from '@/components/ui/Alert/WrongAnimation';     // แก้ Path ให้ตรงกับที่คุณเซฟไว้
 
 dayjs.locale('en');
 
@@ -41,6 +45,23 @@ export default function TripDetail() {
   const [newNote, setNewNote] = useState("");
   
   const selectedCities = citiesParam ? JSON.parse(citiesParam  as string) : [];
+  // --- State สำหรับ Custom Alert ---
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    isSuccess: false,
+    onConfirm: () => {}, 
+  });
+
+  const showCustomAlert = (title: string, message: string, isSuccess = false, onConfirm = () => {}) => {
+    setAlertConfig({ visible: true, title, message, isSuccess, onConfirm });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+    if (alertConfig.onConfirm) alertConfig.onConfirm();
+  };
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -66,7 +87,7 @@ export default function TripDetail() {
         
       } catch (e) {
         console.error("โหลดแผนไม่สำเร็จ:", e);
-        Alert.alert("โหลดแผนไม่สำเร็จ");
+        showCustomAlert("Error", "Failed to load trip plan", false);
       } finally {
         setLoading(false);
       }
@@ -129,12 +150,13 @@ export default function TripDetail() {
             { headers }
         );
 
-        Alert.alert("Success", "Your plan has been saved and location updated successfully.");
-        router.replace({ pathname: "/(tabs)/mytrip" });
+        showCustomAlert("Success!", "Your plan has been saved and location updated successfully.", true, () => {
+            router.replace({ pathname: "/(tabs)/mytrip" });
+        });
 
     } catch (error) {
         console.error("Error confirming plan:", error);
-        Alert.alert("ผิดพลาด", "ไม่สามารถบันทึกแผนได้");
+        showCustomAlert("Error", "Failed to save trip plan", false);
     } finally {
         setSaving(false);
     }
@@ -142,7 +164,7 @@ export default function TripDetail() {
 
   const handleRegenerate = async () => {
     if (currentSelectedCities.length === 0) {
-      Alert.alert("แจ้งเตือน", "กรุณาเลือกเมืองอย่างน้อย 1 เมือง");
+      showCustomAlert("Warning", "Please select at least one city", false);
       return;
     }
 
@@ -191,11 +213,11 @@ export default function TripDetail() {
       setSchedule(revised);
       setEditedSchedule(revised);
       setNewNote(""); // ล้างข้อความ
-      Alert.alert("Success", "Your new travel plan is ready!");
+      showCustomAlert("Success", "Your new travel plan is ready!", true);
 
     } catch (e) {
       console.error("แก้ไขแผนใหม่ไม่สำเร็จ:", e);
-      Alert.alert("Error", "ไม่สามารถสร้างแผนใหม่ได้");
+      showCustomAlert("Error", "Failed to generate new travel plan", false);
     } finally {
       setSaving(false);
     }
@@ -393,11 +415,46 @@ export default function TripDetail() {
       </Modal>
 
       {/* --- 5. Loading Modal (ระหว่างรอ Save) --- */}
-      <Modal transparent={true} animationType="fade" visible={saving} onRequestClose={()=>{}}>
+      {/* --- 5. Loading Modal (ระหว่างรอ Save) เปลี่ยนเป็นเครื่องบิน --- */}
+      <Modal transparent={true} animationType="fade" visible={saving}>
         <View style={styles.loadingOverlay}>
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#FFA500" />
-            <Text style={styles.loadingText}>Updating your plan...</Text>
+          <View style={styles.loadingCard}>
+            <LottieView
+                source={require('@/assets/images/CreateTrip/Airplane.json')} // หรือ Path Lottie ของคุณ
+                autoPlay
+                loop
+                style={{ width: 160, height: 160 }}
+              />
+            <Text style={styles.loadingTitle}>Updating your plan...</Text>
+            <Text style={styles.loadingSub}>Please wait a moment while we update locations.</Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* --- 6. Custom Alert Modal พร้อม Lottie --- */}
+      <Modal visible={alertConfig.visible} transparent animationType="fade">
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertCard}>
+            
+            {alertConfig.isSuccess ? (
+              <ApproveAnimation size={120} loop={false} />
+            ) : (
+              <WrongAnimation size={120} loop={false} />
+            )}
+
+            <Text style={styles.alertTitle}>{alertConfig.title}</Text>
+            <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+
+            <TouchableOpacity style={styles.alertBtn} onPress={closeAlert} activeOpacity={0.8}>
+              <LinearGradient 
+                colors={alertConfig.isSuccess ? ['#66BB6A', '#43A047'] : ['#FFA0B4', '#FF526C']} 
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} 
+                style={styles.alertBtnGradient}
+              >
+                <Text style={styles.alertBtnText}>OK</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
           </View>
         </View>
       </Modal>
@@ -600,24 +657,6 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 
-  // Loading Overlay
-  loadingOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingBox: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontWeight: '600',
-    color: '#333',
-  },
 
   searchInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, marginBottom: 10, backgroundColor: '#f9f9f9' },
   cityListContainer: { height: 200, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 10 },
@@ -625,5 +664,95 @@ const styles = StyleSheet.create({
   checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: '#ccc', marginRight: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' },
   checkboxChecked: { backgroundColor: '#FFA500', borderColor: '#FFA500' },
   cityText: { fontSize: 16, color: '#333' },
+   // Loading Overlay
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingCard: {
+    width: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 30,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    shadowColor: '#FFA500', // โทนส้ม
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  loadingTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#333',
+    marginTop: -10,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingSub: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  // --- Custom Alert Styles ---
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  alertCard: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#FF6B81',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  alertTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#4A3B3D',
+    marginTop: 10,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 15,
+    color: '#7A6B6D',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  alertBtn: {
+    width: '100%',
+    borderRadius: 16,
+    shadowColor: '#FF526C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  alertBtnGradient: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  alertBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
 
 });

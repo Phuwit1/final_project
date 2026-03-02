@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image, FlatList, Modal, Pressable
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image, FlatList, Modal, Pressable,
+  Animated
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
@@ -11,6 +12,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_URL } from '@/api.js'
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import LottieView from 'lottie-react-native';
+import ApproveAnimation from '@/components/ui/Alert/ApproveAnimation'; // แก้ path ให้ตรงกับที่คุณเซฟไว้
+import WrongAnimation from '@/components/ui/Alert/WrongAnimation';
+import { LinearGradient } from 'expo-linear-gradient';
 
 
 type LLMResponse = {
@@ -74,6 +79,22 @@ export default function AICreateTrip() {
   const [picker, setPicker] = useState<{ show: boolean; mode: 'start' | 'end' }>({ show: false, mode: 'start' });
 
   const [loading, setLoading] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    isSuccess: false,
+    onConfirm: () => {}, 
+  });
+
+  const showCustomAlert = (title: string, message: string, isSuccess = false, onConfirm = () => {}) => {
+    setAlertConfig({ visible: true, title, message, isSuccess, onConfirm });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+    alertConfig.onConfirm();
+  };
 
   const openPicker = (mode: 'start' | 'end') => setPicker({ show: true, mode });
 
@@ -187,7 +208,7 @@ export default function AICreateTrip() {
 const onCreateWithAI = async () => {
   try {
     if (!tripName.trim()) {
-      Alert.alert('Please enter trip name');
+      showCustomAlert('Oops!', 'Please enter trip name', false);
       return;
     }
 
@@ -261,25 +282,21 @@ const onCreateWithAI = async () => {
       { headers } 
     );
 
-    Alert.alert('Succuess', `Create your Trip and Schedule`, [
-      {
-        text: 'See Schedule Detail',
-        onPress: () =>
-          router.push({
-            pathname: "/trip/scheduledetail",
-            params: { 
-              planId: planId,
-              cities: JSON.stringify(selectedCities) 
-            }
-          }),
+    showCustomAlert('Success!', 'Your trip is ready! Please check the details and make sure everything looks good.', true, () => {
+      router.push({
+        pathname: "/trip/scheduledetail",
+        params: { 
+          planId: planId,
+          cities: JSON.stringify(selectedCities) 
         }
-    ]);
+      });
+    });
   } catch (e: any) {
     console.error(
       'AI create trip error:',
       e?.response?.data ?? e?.message ?? e
     );
-    Alert.alert('Create trip error', 'Please try again');
+    showCustomAlert('Create trip error', 'Please try again', false);
   } finally {
     setLoading(false);
   }
@@ -421,14 +438,79 @@ const onCreateWithAI = async () => {
           />
         )}
 
-        <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onCreateWithAI} disabled={loading || !tripName}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Create Your Trip</Text>}
+        <TouchableOpacity style={styles.submitBtnWrapper} onPress={onCreateWithAI} disabled={loading || !tripName} activeOpacity={0.8}>
+            <LinearGradient 
+              // เปลี่ยนจากสีชมพู เป็นโทนสีน้ำตาลไม้ (Light Oak -> Dark Walnut)
+              colors={['#a7855b', '#b66214']} 
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} 
+              style={styles.submitBtnGradient}
+            >
+                {loading ? <ActivityIndicator color="#fff" /> : (
+                    <>
+                        <Text style={styles.btnPrimaryText}>Create Your Trip</Text>
+                    </>
+                )}
+            </LinearGradient>
         </TouchableOpacity>
-
         <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => router.back()} disabled={loading}>
           <Text style={styles.btnGhostText}>Back</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal visible={loading} transparent animationType="fade">
+        {/* ใส่ Overlay ทำพื้นหลังสีดำโปร่งแสง และจัดให้อยู่ตรงกลางจอ */}
+        <View style={styles.loadingOverlay}>
+          
+          {/* ใส่ Card สีขาวขอบมน พร้อมเงาสีชมพูให้ดูเด่นเด้งขึ้นมา */}
+          <View style={styles.loadingCard}>
+            
+            <LottieView
+                source={require('@/assets/images/CreateTrip/Airplane.json')}
+                autoPlay
+                loop
+                style={{ width: 180, height: 180 }} // ปรับขนาดให้ใหญ่ขึ้นอีกนิดให้เด่นๆ
+              />
+              
+              {/* เพิ่มข้อความให้ผู้ใช้รู้ว่า AI กำลังทำงานอยู่ */}
+              <Text style={styles.loadingTitle}>Planning Your Journey...</Text>
+              <Text style={styles.loadingSub}>
+                 We’re finding the best places for you. This will only take a moment.
+              </Text>
+
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={alertConfig.visible} transparent animationType="fade">
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertCard}>
+            
+            {/* แสดง Animation ตามสถานะ */}
+            {alertConfig.isSuccess ? (
+              <ApproveAnimation size={120} loop={true} />
+            ) : (
+              <WrongAnimation size={120} loop={true} />
+            )}
+
+            <Text style={styles.alertTitle}>{alertConfig.title}</Text>
+            <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+
+            {/* ปุ่มกดตกลง */}
+            <TouchableOpacity style={styles.alertBtn} onPress={closeAlert} activeOpacity={0.8}>
+              <LinearGradient 
+                // สีเขียวถ้าสำเร็จ สีชมพูแดงถ้าผิดพลาด
+                colors={alertConfig.isSuccess ? ['#66BB6A', '#43A047'] : ['#FFA0B4', '#FF526C']} 
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} 
+                style={styles.alertBtnGradient}
+              >
+                <Text style={styles.alertBtnText}>View Details</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -463,9 +545,9 @@ const styles = StyleSheet.create({
 
   btn:{ padding:16, borderRadius:12, alignItems:'center' },
   btnPrimary:{ backgroundColor:'#111827' },
-  btnPrimaryText:{ color:'#fff', fontSize:16, fontWeight:'700' },
+  btnPrimaryText:{ color:'#fff', fontSize:16, fontWeight:'700', textAlign: 'center' },
   btnGhost:{ backgroundColor:'#fff', borderWidth:1, borderColor:'#e5e7eb' },
-  btnGhostText:{ color:'#111827', fontSize:16, fontWeight:'700' },
+  btnGhostText:{ color:'#111827', fontSize:16, fontWeight:'700', textAlign: 'center' },
   card: {
     width: 140,
     height: 150,
@@ -517,4 +599,113 @@ const styles = StyleSheet.create({
   modalCancel: { backgroundColor: '#fff' },
   modalApply: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
   modalBtnText: { fontWeight: '700' },
+  // --- Loading Modal Styles ---
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)', // พื้นหลังสีดำโปร่งแสง
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingCard: {
+    width: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    shadowColor: '#FF6B81',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  loadingTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#4A3B3D',
+    marginTop: 24,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingSub: {
+    fontSize: 14,
+    color: '#7A6B6D',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  // --- Custom Alert Styles ---
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  alertCard: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#FF6B81',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  alertTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#4A3B3D',
+    marginTop: 10,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 15,
+    color: '#7A6B6D',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  alertBtn: {
+    width: '100%',
+    borderRadius: 16,
+    shadowColor: '#FF526C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  alertBtnGradient: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  alertBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  // --- Styles สำหรับปุ่ม Create Trip แบบใหม่ ---
+  submitBtnWrapper: {
+    marginTop: 10, 
+    borderRadius: 25, 
+    // เปลี่ยนเงาเป็นสีน้ำตาลเข้ม
+    shadowColor: '#8B5A2B', 
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35, 
+    shadowRadius: 8, 
+    elevation: 5
+  },
+  submitBtnGradient: {
+    flexDirection: 'row', 
+    paddingVertical: 16, 
+    borderRadius: 25,
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8
+  },
+
 });

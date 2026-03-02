@@ -102,7 +102,7 @@ export default function LogoutButton({ onLogoutSuccess }: LogoutButtonProps) {
       {loading ? (
         <ActivityIndicator color="white" />
       ) : (
-        <Text style={styles.logoutButtonText}>ออกจากระบบ</Text>
+        <Text style={styles.logoutButtonText}>Logout</Text>
       )}
     </TouchableOpacity>
   );

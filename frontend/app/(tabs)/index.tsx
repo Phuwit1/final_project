@@ -52,18 +52,8 @@ export default function Home(){
 
   const fetchAttractions = async () => {
     try{
-      const token = await AsyncStorage.getItem('access_token');
-      if (!token) {
-        console.log('No token found');
-        return;
-      }
 
-      const res = await axios.get<AttractionData[]>(`${API_URL}/attractions/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-      );
+      const res = await axios.get<AttractionData[]>(`${API_URL}/attractions/`);
       const allData = res.data;
 
       const attractions = allData.filter(item => item.place_types.includes('tourist_attraction'));
@@ -260,8 +250,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.5)',
   },
   seeMoreCard: {
-    width: 140,       // ความกว้างให้ใกล้เคียงกับ InfoCard
-    height: 180,      // ความสูง (ปรับให้เท่ากับ InfoCard ของคุณ)
+    width: 170,       // ความกว้างให้ใกล้เคียงกับ InfoCard
+    height: 290,      // ความสูง (ปรับให้เท่ากับ InfoCard ของคุณ)
     backgroundColor: '#fff',
     borderRadius: 12,
     justifyContent: 'center',
@@ -293,7 +283,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: 16, // ระยะห่างขอบซ้ายขวาของ ScrollView
     paddingBottom: 16,     // ระยะห่างด้านล่าง
-    alignItems: 'center',  // จัดให้อยู่กึ่งกลางแนวตั้ง
+    alignItems: 'flex-start',
   },
   
 });

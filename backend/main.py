@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 import subprocess
 import sys
 
-from routers import auth, customer, trip_group, budget, trip_plan, ai
+from routers import auth, customer, trip_group, budget, trip_plan, ai, cache
 from dependencies import load_cities_data, get_cities_list, cities_data, SECRET_KEY, ALGORITHM, get_db
 from db import db
 
@@ -70,7 +70,7 @@ app.add_middleware(
 @app.middleware("http")
 async def jwt_middleware(request: Request, call_next):
     
-    if request.url.path in ["/login", "/register", "/refresh-token", "/google-login", "/cities"]:   
+    if request.url.path in ["/login", "/register", "/refresh-token", "/google-login", "/cities", "/explore-cities", "/attractions/", "/attractions/{id}"]:   
         return await call_next(request)
 
     auth = request.headers.get("Authorization")
@@ -105,6 +105,7 @@ app.include_router(trip_group.router)
 app.include_router(budget.router)
 app.include_router(trip_plan.router)
 app.include_router(ai.router)
+app.include_router(cache.router)
 
 
 @app.get("/cities")

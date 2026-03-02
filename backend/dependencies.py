@@ -11,7 +11,6 @@ from schemas import City
 
 load_dotenv()
 
-# JWT Configuration
 SECRET_KEY = "B81LunjU4Q5r2ctmjwFSujqAHOAtso4TslFDQKfDlHs"
 ALGORITHM = "HS256"
 
@@ -53,7 +52,6 @@ async def get_current_user(request: Request, db: Prisma = Depends(get_db)):
 cities_data: List[City] = []
 
 def load_cities_data():
-    """Load cities data from JSON file on startup"""
     global cities_data
     file_path = "data/cities.json"
     try:

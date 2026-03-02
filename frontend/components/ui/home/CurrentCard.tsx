@@ -103,7 +103,7 @@ export default function CurrentCard() {
   };
 
   const handleCreateTrip = () => {
-    router.push('/trip/Createtrip'); // เปลี่ยน path ตามหน้าสร้างทริปของคุณ
+    router.push('/trip/after-create'); // เปลี่ยน path ตามหน้าสร้างทริปของคุณ
   };
 
   const handleJoinTrip = () => {

@@ -12,23 +12,24 @@ import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplet
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { G } from 'react-native-svg';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import dayjs from 'dayjs';
+import LottieView from 'lottie-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import ApproveAnimation from '@/components/ui/Alert/ApproveAnimation'; // แก้ Path ให้ตรงกับที่คุณเซฟ
+import WrongAnimation from '@/components/ui/Alert/WrongAnimation';
 //import '@/dotenv/config';
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || 'AIzaSyA73tpAfskui7aqX9GXabfGLU0OZ5HLC-U';
 
 export default function EditSchedule() {
-  // ✅ รับ trip_id จาก URL และ dayIndex จาก query param
+  // ✅ Get trip_id from URL and dayIndex from query param
   const { trip_id, dayIndex } = useLocalSearchParams();
   const router = useRouter();
-
-  // ใช้ trip_id แทน planId ในการเรียก API (สมมติว่าเป็น ID ตัวเดียวกัน)
   const planId = trip_id; 
-
   const [loading, setLoading] = useState(true);
   const [selectedDayIndex, setSelectedDayIndex] = useState(dayIndex ? parseInt(dayIndex as string) : 0);
-  
   const [schedule, setSchedule] = useState<any>(null);
   const [editedSchedule, setEditedSchedule] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -36,27 +37,46 @@ export default function EditSchedule() {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   // เลือกวัน 
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [tempTimeIndex, setTempTimeIndex] = useState<number | null>(null); // เก็บ index ของรายการที่กำลังแก้เวลา
+  const [tempTimeIndex, setTempTimeIndex] = useState<number | null>(null); // Store index of item being edited
   const [tempDate, setTempDate] = useState(new Date());
+
+  // --- State สำหรับ Custom Alert ---
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    isSuccess: false,
+    onConfirm: () => {}, 
+  });
+
+  const showCustomAlert = (title: string, message: string, isSuccess = false, onConfirm = () => {}) => {
+    setAlertConfig({ visible: true, title, message, isSuccess, onConfirm });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+    if (alertConfig.onConfirm) alertConfig.onConfirm();
+  };
+
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
         try {
-          setLoading(true); // ควร set loading เป็น true ทุกครั้งที่ focus ใหม่
+          setLoading(true); // Set loading to true on each focus
           const token = await AsyncStorage.getItem('access_token');
           const headers: any = { 'Content-Type': 'application/json' };
           if (token) headers.Authorization = `Bearer ${token}`;
 
-          // เรียก API ดึงข้อมูล
+          // Fetch data from API
           const res = await axios.get(`${API_URL}/trip_schedule/${planId}`, { headers });
           const payload = res.data?.payload;
           
           setSchedule(payload);
-          // ใช้ JSON.parse(JSON.stringify(...)) เพื่อ Deep Copy
+          // Use JSON.parse(JSON.stringify(...)) for deep copy
           setEditedSchedule(JSON.parse(JSON.stringify(payload)));
         } catch (e) {
-          console.error("โหลดข้อมูลไม่สำเร็จ:", e);
-          Alert.alert("Error", "โหลดข้อมูลไม่สำเร็จ");
+          console.error("Failed to load data:", e);
+          showCustomAlert("Error", "Failed to load data", false);
         } finally {
           setLoading(false);
         }
@@ -66,9 +86,9 @@ export default function EditSchedule() {
         fetchData();
       }
 
-      // Cleanup function (ถ้าจำเป็น เช่น cancel request)
+      // Cleanup function (optional - e.g. cancel request)
       return () => {
-        // ส่วนนี้จะทำงานเมื่อหน้าจอเสีย focus (เบลอ)
+        // This runs when the screen loses focus (blur)
       };
     }, [planId]) // dependencies array
   );
@@ -79,7 +99,26 @@ export default function EditSchedule() {
       copy.itinerary[dayIdx].schedule[actIdx][field] = value;
       return copy;
     });
-  
+  };
+
+  const handleDragEnd = ({ data }: { data: any[] }) => {
+    setEditedSchedule((prev: any) => {
+      const copy = { ...prev };
+      const currentSchedule = copy.itinerary[selectedDayIndex].schedule;
+
+      // 1. Keep the "original time slots" in order (e.g. 09:00, 10:00, 11:00)
+      const originalTimes = currentSchedule.map((item: any) => item.time);
+
+      // 2. Map the dragged activity data with the original times
+      // This ensures moved items get the correct time slots
+      const updatedData = data.map((item, index) => ({
+        ...item,
+        time: originalTimes[index], 
+      }));
+
+      copy.itinerary[selectedDayIndex].schedule = updatedData;
+      return copy;
+    });
   };
 
   const confirmPlan = async () => {
@@ -95,11 +134,13 @@ export default function EditSchedule() {
         { headers }
       );
 
-      Alert.alert("สำเร็จ", "บันทึกการแก้ไขเรียบร้อยแล้ว ✅");
+      showCustomAlert("Success!", "Changes saved successfully", true, () => {
+        router.back();
+      });
       router.back(); 
     } catch (e) {
-      console.error("บันทึกไม่สำเร็จ:", e);
-      Alert.alert("Error", "บันทึกไม่สำเร็จ");
+      console.error("Save failed:", e);
+      showCustomAlert("Error", "Failed to save", false);
     } finally {
       setSaving(false);
     }
@@ -119,7 +160,7 @@ export default function EditSchedule() {
         const lastTime = currentSchedule[currentSchedule.length - 1].time;
         if (lastTime && lastTime.includes(":")) {
             const [hh, mm] = lastTime.split(":").map(Number);
-            let newH = hh + 1; // บวกเพิ่ม 1 ชั่วโมง
+            let newH = hh + 1; // Add 1 hour
             if (newH >= 24) newH -= 24;
             nextTime = `${newH.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
         }
@@ -127,10 +168,10 @@ export default function EditSchedule() {
 
     setEditedSchedule((prev: any) => {
       const copy = { ...prev };
-      // เพิ่มกิจกรรมพร้อมข้อมูลพิกัด
+      // Add activity with location data
       copy.itinerary[selectedDayIndex].schedule.push({
-        time: nextTime, // เวลาเริ่มต้น (อาจจะตั้งให้ฉลาดกว่านี้ได้)
-        activity: name, // ใช้ชื่อสถานที่ที่เลือก
+        time: nextTime, // Default start time (can be made smarter)
+        activity: name, // Use the selected place name
         need_location: true,
         specific_location_name: name,
         lat: location?.lat || null,
@@ -141,13 +182,13 @@ export default function EditSchedule() {
       return copy;
     });
 
-    setIsSearchVisible(false); // ปิด Modal
+    setIsSearchVisible(false); // Close modal
   };
 
   const openTimePicker = (timeStr: string, index: number) => {
     setTempTimeIndex(index);
     
-    // แปลง string "HH:mm" เป็น Date Object เพื่อให้ Picker แสดงค่าเริ่มต้นถูก
+    // Convert "HH:mm" string to Date Object for picker display
     const now = new Date();
     const [hh, mm] = timeStr.split(':').map(Number);
     if (!isNaN(hh) && !isNaN(mm)) {
@@ -160,22 +201,22 @@ export default function EditSchedule() {
 
   // ฟังก์ชันเมื่อเลือกเวลาเสร็จ
   const onTimeChange = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios'); // iOS ให้กด Done เอง, Android ปิดเลย
+    setShowTimePicker(Platform.OS === 'ios'); // iOS requires Done button, Android closes automatically
     
     if (selectedDate && tempTimeIndex !== null) {
-      // แปลงกลับเป็น String "HH:mm"
+      // Convert back to "HH:mm" string
       const hh = selectedDate.getHours().toString().padStart(2, '0');
       const mm = selectedDate.getMinutes().toString().padStart(2, '0');
       const newTimeStr = `${hh}:${mm}`;
 
-      // อัปเดตลง State หลัก
+      // Update main state
       updateActivity(selectedDayIndex, tempTimeIndex, "time", newTimeStr);
       
       if (Platform.OS === 'android') {
           setTempTimeIndex(null); // Reset index
       }
     } else {
-        // กรณี Cancel
+        // Cancel case
         setTempTimeIndex(null);
     }
   };
@@ -190,7 +231,7 @@ export default function EditSchedule() {
         onPress: () => {
           setEditedSchedule((prev: any) => {
             const copy = { ...prev };
-            // ลบกิจกรรมตาม index ออกจาก array
+      // Delete activity by index from array
             copy.itinerary[selectedDayIndex].schedule.splice(actIdx, 1);
             return copy;
           });
@@ -199,163 +240,247 @@ export default function EditSchedule() {
     ]);
   };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#FFA500" />;
-  if (!editedSchedule) return <View style={styles.container}><Text>ไม่พบข้อมูล</Text></View>;
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
+        <LottieView
+          source={require('@/assets/images/Loading.json')} // เปลี่ยน Path ให้ตรงกับที่คุณเซฟ
+          autoPlay
+          loop
+          style={{ width: 200, height: 200 }}
+        />
+        <Text style={{ marginTop: -20, fontSize: 18, fontWeight: 'bold', color: '#4A3B3D' }}>
+          Preparing your schedule...
+        </Text>
+      </View>
+    );
+  }
+  if (!editedSchedule) return <View style={styles.container}><Text>Data not found</Text></View>;
 
   const currentDay = editedSchedule.itinerary[selectedDayIndex];
 
-  return (
-    <SafeAreaView style={styles.container}>
-      
-      {/* Header: เลือกวัน */}
-      <View style={styles.headerContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayList}>
-          {editedSchedule.itinerary.map((item: any, index: number) => {
-            const isSelected = selectedDayIndex === index;
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[styles.dayChip, isSelected && styles.selectedDayChip]}
-                onPress={() => setSelectedDayIndex(index)}
-              >
-                <Text style={[styles.dayText, isSelected && styles.selectedDayText]}>{item.day}</Text>
-                <Text style={[styles.dateText, isSelected && styles.selectedDateText]}>{dayjs(item.date).format('D MMM')}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Body: รายการกิจกรรม  {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')} */}
-      
-        <View style={styles.bodytop}>
-            <View style={styles.dayHeaderRow}>
-            <Text style={styles.dayTitle}> {currentDay.day} - {dayjs(currentDay.date).format('D MMM YY')}</Text>
+  // ✅ UI ของการ์ดแต่ละใบที่จะให้ลากได้
+  const renderDraggableItem = ({ item, getIndex, drag, isActive }: RenderItemParams<any>) => {
+    const i = getIndex() ?? 0;
+    return (
+      <ScaleDecorator>
+        {/* Wrapped with TouchableOpacity that captures onLongPress event to start dragging */}
+        <TouchableOpacity
+          activeOpacity={1}
+          onLongPress={drag}
+          delayLongPress={200} // Long press for 0.2 seconds to start dragging (prevents accidental drags during typing)
+          disabled={isActive}
+          style={[styles.cardContainer, { opacity: isActive ? 0.8 : 1 }]}
+        >
+          <View style={[styles.card, isActive && { borderColor: '#FFA500', borderWidth: 2, transform: [{ scale: 1.02 }] }]}>
             
-            <TouchableOpacity onPress={handleAddActivity} style={styles.addButton}>
-                <Ionicons name="add-circle" size={24} color="#28a745" />
-                <Text style={styles.addButtonText}>Add Activity</Text>
-            </TouchableOpacity>
+            {/* Icon to indicate dragging is possible */}
+            <View style={styles.dragHandleIcon}>
+              <Ionicons name="reorder-two" size={24} color="#CCC" />
             </View>
-        </View>
 
-
-        <View style={styles.bodyContainer}>
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          {currentDay.schedule.map((item: any, i: number) => (
-            <View key={`${selectedDayIndex}-${i}`} style={styles.cardContainer}>
-              <View style={styles.card}>
-                
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Time</Text>
-
-                  <TouchableOpacity onPress={() => openTimePicker(item.time, i)}>
-                    <View style={styles.timeInputBox}>
-                       <Text style={styles.timeText}>{item.time}</Text>
-                       <Ionicons name="time-outline" size={16} color="#666" />
-                    </View>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Activity</Text>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    multiline
-                    value={item.activity}
-                    onChangeText={(val) => updateActivity(selectedDayIndex, i, "activity", val)}
-                  />
-                </View>
-
-                <TouchableOpacity 
-                  style={styles.deleteButton} 
-                  onPress={() => handleDeleteActivity(i)}
-                >
-                  <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            <View style={{ flex: 1, marginLeft: 25 }}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Time</Text>
+                <TouchableOpacity onPress={() => openTimePicker(item.time, i)}>
+                  <View style={styles.timeInputBox}>
+                    <Text style={styles.timeText}>{item.time}</Text>
+                    <Ionicons name="time-outline" size={16} color="#666" />
+                  </View>
                 </TouchableOpacity>
               </View>
 
-              
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Activity</Text>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  multiline
+                  value={item.activity}
+                  onChangeText={(val) => updateActivity(selectedDayIndex, i, "activity", val)}
+                />
+              </View>
             </View>
-          ))}
-          <View style={{ height: 80 }} /> 
-        </ScrollView>
 
-        {showTimePicker && (
-        <DateTimePicker
-          value={tempDate}
-          mode="time"
-          is24Hour={true}
-          display="default" // หรือ "spinner"
-          onChange={onTimeChange}
-        />
-      )}
-      </View>
-
-      {/* Footer: ปุ่มบันทึก */}
-      <View style={styles.footerContainer}>
-        <TouchableOpacity onPress={confirmPlan} style={styles.confirmButton}>
-          <Text style={styles.confirmButtonText}>Save Changes</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Modal
-        visible={isSearchVisible}
-        animationType="slide"
-        onRequestClose={() => setIsSearchVisible(false)}
-      >
-        <SafeAreaView style={styles.searchModalContainer}>
-          <View style={styles.searchHeader}>
-            <Text style={styles.searchTitle}>ค้นหาสถานที่</Text>
-            <TouchableOpacity onPress={() => setIsSearchVisible(false)}>
-              <Ionicons name="close" size={28} color="#333" />
+            <TouchableOpacity 
+              style={styles.deleteButton} 
+              onPress={() => handleDeleteActivity(i)}
+            >
+              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
             </TouchableOpacity>
-          </View>
 
-          <View style={styles.autocompleteContainer}>
-            <GooglePlacesAutocomplete
-              placeholder='พิมพ์ชื่อสถานที่...'
-              onPress={onPlaceSelected}
-              query={{
-                key: GOOGLE_API_KEY,
-                language: 'en', // หรือ 'en'
-              }}
-              fetchDetails={true} // สำคัญ! ต้องเป็น true ถึงจะได้ lat/lng
-              styles={{
-                textInput: styles.searchInput,
-                listView: {
-                  position: 'absolute',    // ✅ ให้ลอยอยู่เหนือ element อื่น
-                  top: 60,                 // ✅ ดันลงมาจากช่องพิมพ์
-                  width: '100%',           // ✅ ความกว้างเต็มจอ
-                  backgroundColor: 'white',// ✅ ใส่สีพื้นหลัง (ไม่งั้นจะใส มองไม่เห็น)
-                  borderRadius: 5,
-                  zIndex: 1000,            // ✅ ให้ layer อยู่บนสุด
-                  elevation: 5,            // ✅ เงาสำหรับ Android
-                  borderWidth: 1,
-                  borderColor: '#eee',
-                },
-                container: {
-                  flex: 0, // ป้องกันมันกินพื้นที่เต็มจอถ้าไม่จำเป็น
-                } // ดัน List ขึ้นมา
-              }}
-              enablePoweredByContainer={false}
-              onFail={(error) => console.error("Google Places Error:", error)}
-            />
           </View>
-        </SafeAreaView>
-      </Modal>
+        </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  };
 
-      {/* Loading Modal */}
-      <Modal transparent={true} animationType="fade" visible={saving} onRequestClose={()=>{}}>
-        <View style={styles.loadingOverlay}>
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#FFA500" />
-            <Text style={styles.loadingText}>กำลังบันทึก...</Text>
-          </View>
+  return (
+    
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
+        
+        {/* Header: Select day */}
+        <View style={styles.headerContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayList}>
+            {editedSchedule.itinerary.map((item: any, index: number) => {
+              const isSelected = selectedDayIndex === index;
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.dayChip, isSelected && styles.selectedDayChip]}
+                  onPress={() => setSelectedDayIndex(index)}
+                >
+                  <Text style={[styles.dayText, isSelected && styles.selectedDayText]}>{item.day}</Text>
+                  <Text style={[styles.dateText, isSelected && styles.selectedDateText]}>{dayjs(item.date).format('D MMM')}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
-      </Modal>
 
-    </SafeAreaView>
+        {/* Body: List of activities  {dayjs(dayKeys[selectedDay - 1]).format('D MMMM YYYY')} */}
+        
+          <View style={styles.bodytop}>
+              <View style={styles.dayHeaderRow}>
+              <Text style={styles.dayTitle}> {currentDay.day} - {dayjs(currentDay.date).format('D MMM YY')}</Text>
+              
+              <TouchableOpacity onPress={handleAddActivity} style={styles.addButton}>
+                  <Ionicons name="add-circle" size={24} color="#28a745" />
+                  <Text style={styles.addButtonText}>Add Activity</Text>
+              </TouchableOpacity>
+              </View>
+          </View>
+
+
+         <View style={styles.bodyContainer}>
+            <DraggableFlatList
+              data={currentDay.schedule}
+              onDragEnd={handleDragEnd} // Callback for drag end
+              keyExtractor={(item, index) => `draggable-item-${index}`}
+              renderItem={renderDraggableItem} // Use created component
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 80 }}
+            />
+
+            {showTimePicker && (
+              <DateTimePicker
+                value={tempDate}
+                mode="time"
+                is24Hour={true}
+                display="default"
+                onChange={onTimeChange}
+              />
+            )}
+        </View>
+
+        {/* Footer: Save button */}
+        <View style={styles.footerContainer}>
+          <TouchableOpacity onPress={confirmPlan} style={styles.confirmButton}>
+            <Text style={styles.confirmButtonText}>Save Changes</Text>
+          </TouchableOpacity>
+        </View>
+
+       {isSearchVisible && (
+        <View style={styles.searchOverlayAbsolute}>
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={styles.searchHeader}>
+              <Text style={styles.searchTitle}>Find a place</Text>
+              <TouchableOpacity onPress={() => setIsSearchVisible(false)}>
+                <Ionicons name="close" size={28} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.autocompleteContainer}>
+              <GooglePlacesAutocomplete
+                placeholder='Type place name...'
+                onPress={onPlaceSelected}
+                query={{
+                  key: GOOGLE_API_KEY,
+                  language: 'en',
+                  components: 'country:jp', 
+                }}
+                fetchDetails={true}
+                debounce={400} 
+                minLength={2} 
+                nearbyPlacesAPI="GooglePlacesSearch" 
+                GooglePlacesSearchQuery={{
+                  rankby: 'prominence'
+                }}
+                styles={{
+                  textInput: styles.searchInput,
+                  listView: {
+                    // ✅ ลบ position: 'absolute' ออก เพื่อไม่ให้บั๊กหาย
+                    backgroundColor: 'white',
+                    borderRadius: 5,
+                    elevation: 5,
+                    borderWidth: 1,
+                    borderColor: '#eee',
+                    flex: 1, // ดันให้เต็มจอ
+                  },
+                  container: { flex: 1 },
+                  row: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+                  description: { color: '#666', fontSize: 14 }
+                }}
+                enablePoweredByContainer={false}
+                onFail={(error) => {
+                  console.error("Google Places Error:", error);
+                  showCustomAlert("Error", "No results found. Please try again", false);
+                }}
+              />
+            </View>
+          </SafeAreaView>
+        </View>
+      )}
+      </SafeAreaView>
+
+        {/* ----------------------------------------------------------- */}
+        {/* 2. Loading Modal (ตอนกดบันทึก) */}
+        {/* ----------------------------------------------------------- */}
+        <Modal transparent={true} animationType="fade" visible={saving} onRequestClose={()=>{}}>
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingBox}>
+              <LottieView
+                source={require('@/assets/images/Loading.json')}
+                autoPlay
+                loop
+                style={{ width: 150, height: 150 }}
+              />
+              <Text style={[styles.loadingText, { marginTop: -20 }]}>Saving...</Text>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ----------------------------------------------------------- */}
+        {/* 3. Custom Alert Modal (แสดงตอนโหลดเสร็จ หรือ เกิด Error) */}
+        {/* ----------------------------------------------------------- */}
+        <Modal visible={alertConfig.visible} transparent animationType="fade">
+          <View style={styles.alertOverlay}>
+            <View style={styles.alertCard}>
+              
+              {alertConfig.isSuccess ? (
+                <ApproveAnimation size={120} loop={false} />
+              ) : (
+                <WrongAnimation size={120} loop={false} />
+              )}
+
+              <Text style={styles.alertTitle}>{alertConfig.title}</Text>
+              <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+
+              <TouchableOpacity style={styles.alertBtn} onPress={closeAlert} activeOpacity={0.8}>
+                <LinearGradient 
+                  colors={alertConfig.isSuccess ? ['#66BB6A', '#43A047'] : ['#FFA0B4', '#FF526C']} 
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} 
+                  style={styles.alertBtnGradient}
+                >
+                  <Text style={styles.alertBtnText}>OK</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+            </View>
+          </View>
+        </Modal>
+
+    </GestureHandlerRootView>
   );
 }
 
@@ -393,7 +518,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: { color: '#28a745', fontWeight: 'bold', marginLeft: 4, fontSize: 14 },
 
-  // ✅ Style สำหรับแถว Card + ปุ่มลบ
+  // ✅ Style for card rows + delete button
   cardContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -434,6 +559,7 @@ const styles = StyleSheet.create({
 
   searchModalContainer: {
     flex: 1,
+    zIndex: 1000,
     backgroundColor: 'white',
   },
   searchHeader: {
@@ -475,8 +601,100 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-
-  loadingOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  loadingBox: { backgroundColor: 'white', padding: 24, borderRadius: 16, alignItems: 'center' },
-  loadingText: { marginTop: 16, fontWeight: '600', color: '#333', fontSize: 16 }
+  loadingOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingBox: {
+    backgroundColor: 'white',
+    padding: 30,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 200, // กำหนดขนาดขั้นต่ำให้กล่องดูสวย
+  },
+  loadingText: { 
+    marginTop: 16, 
+    fontWeight: '600', 
+    color: '#333', 
+    fontSize: 16 
+  },
+  dragHandleIcon: {
+    position: 'absolute',
+    left: 8,
+    top: '50%',
+    marginTop: -10, // Center vertically
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  // --- Custom Alert Styles ---
+ alertOverlay: {
+  position: 'absolute',
+  top: 0, left: 0, right: 0, bottom: 0,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+  alertCard: {
+    width: '100%',
+    maxWidth: 350, // จำกัดไม่ให้กล่องกว้างเกินไปในหน้าจอใหญ่ๆ
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF6B81',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  alertTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#4A3B3D',
+    marginTop: 10,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 15,
+    color: '#7A6B6D',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  alertBtn: {
+    width: '100%',
+    borderRadius: 16,
+    shadowColor: '#FF526C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  alertBtnGradient: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  alertBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  searchOverlayAbsolute: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'white',
+    zIndex: 9999, // ให้ทับทุกอย่างบนหน้าจอ
+    elevation: 9999, // สำหรับ Android
+  },
 });

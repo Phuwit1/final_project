@@ -25,6 +25,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install react-native-screens react-native-safe-area-context
    npx expo install react-native-google-places-autocomplete
    npx expo install expo-sqlite
+   npx expo install expo-image-picker
    ```
 
 1.1 get sha1

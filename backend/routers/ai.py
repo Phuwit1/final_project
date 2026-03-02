@@ -40,8 +40,8 @@ async def ai_chat(body: ChatBody):
 async def get_location_for_itinerary(text: Location):
     return  await get_location(text)
 
-@router.get("/route")
-async def get_route(text: RouteRequest = Depends()):
+@router.post("/route")
+async def get_route(text: RouteRequest):
     return await route(text)
 
 @router.post("/route/summarize")
