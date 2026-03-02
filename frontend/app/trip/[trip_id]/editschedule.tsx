@@ -140,6 +140,26 @@ export default function EditSchedule() {
     console.log(GOOGLE_API_KEY);
   };
 
+  const handleDragEnd = ({ data }: { data: any[] }) => {
+    setEditedSchedule((prev: any) => {
+      const copy = { ...prev };
+      const currentSchedule = copy.itinerary[selectedDayIndex].schedule;
+
+      // 1. เก็บ "สล็อตเวลาเดิม" เอาไว้ตามลำดับ (เช่น 09:00, 10:00, 11:00)
+      const originalTimes = currentSchedule.map((item: any) => item.time);
+
+      // 2. เอาข้อมูลกิจกรรมที่โดนลากสลับตำแหน่งแล้ว มาแมปเข้ากับเวลาเดิม
+      // ทำให้ตัวที่เลื่อนขึ้นได้เวลาเช้าลง และตัวที่โดนดันลงได้เวลาสายขึ้น ตามที่คุณต้องการเป๊ะๆ
+      const updatedData = data.map((item, index) => ({
+        ...item,
+        time: originalTimes[index], 
+      }));
+
+      copy.itinerary[selectedDayIndex].schedule = updatedData;
+      return copy;
+    });
+  };
+
   const onPlaceSelected = (data: any, details: any = null) => {
     const name = data.description || data.name;
     const location = details?.geometry?.location; // ได้ { lat: ..., lng: ... }
