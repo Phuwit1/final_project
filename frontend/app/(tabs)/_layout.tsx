@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Platform } from 'react-native';
 import { View, TouchableOpacity, Text, StyleSheet, Animated, Image } from 'react-native';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import JoinTripModal from '../(modals)/join-trip';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -28,6 +29,7 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
 
   return (
     <>
@@ -171,16 +173,20 @@ export default function TabLayout() {
           </Link>
 
           {/* ปุ่มขวา: Join Trip */}
-          <TouchableOpacity 
-            style={styles.actionButtonRight}
-            onPress={() => {
-              setOpen(false);
-              router.push('/(modals)/join-trip');
-            }}
-          >
-            <Ionicons name="people-outline" size={20} color="white" />
-            <Text style={styles.actionText}>Join Trip</Text>
-          </TouchableOpacity>
+          <View>
+              <TouchableOpacity onPress={() => setShowJoinModal(true)} style={styles.actionButtonRight}>
+                  <Ionicons name="people-outline" size={20} color="white" />
+                  <Text style={styles.actionText}>Join Trip</Text>
+              </TouchableOpacity>
+
+              {/* แปะ Modal ไว้ล่างสุด */}
+              {showJoinModal && (
+                  <JoinTripModal 
+                    isVisible={showJoinModal} 
+                    onClose={() => setShowJoinModal(false)} 
+                  />
+              )}
+            </View>
         </View>
       )}
     </BottomSheetModalProvider>
