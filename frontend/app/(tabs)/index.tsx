@@ -1,4 +1,4 @@
-import {View, Text, StyleSheet, Image } from 'react-native';
+import {View, Text, StyleSheet, Image, Pressable } from 'react-native';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import CurrentCard from '@/components/ui/home/CurrentCard';
 import InfoCard from '@/components/ui/home/InfoCard';
@@ -91,12 +91,12 @@ export default function Home(){
               <View style={styles.overlayContent}>
                 <Text style={styles.welcomeText}>Welcome, {fullname} </Text>
                 
-                <TouchableOpacity 
+                <Pressable 
                   style={styles.flightButton} 
                   onPress={() => setModalVisible(true)}
                 >
                   <Ionicons name="airplane" size={24} color="#fff" />
-                </TouchableOpacity>
+                </Pressable>
                 <CurrentCard />
                 
               </View>
@@ -248,6 +248,7 @@ const styles = StyleSheet.create({
     borderRadius: 20, // ทำเป็นวงกลม
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.5)',
+    zIndex: 10,
   },
   seeMoreCard: {
     width: 170,       // ความกว้างให้ใกล้เคียงกับ InfoCard

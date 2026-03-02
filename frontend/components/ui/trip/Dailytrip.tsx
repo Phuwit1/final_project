@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -120,13 +120,10 @@ const DailyPlanTabs = forwardRef<DailyPlanTabsHandle, Props>(function DailyPlanT
     setLoading(false);
   }
 };
-
-useFocusEffect(
-    useCallback(() => {
-      fetchSchedules(); // ฟังก์ชันดึง API ของคุณ
-    }, [planId, startDate, endDate])
-  );
-
+  useEffect(() => {
+    fetchSchedules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId, startDate, endDate]);
 
   useImperativeHandle(ref, () => ({
     setActiveDay: (index: number) => {

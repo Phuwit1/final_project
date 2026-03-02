@@ -93,32 +93,22 @@ export default function EditSchedule() {
     }, [planId]) // dependencies array
   );
 
+  // const updateActivity = (dayIdx: number, actIdx: number, field: string, value: string) => {
+  //   setEditedSchedule((prev: any) => {
+  //     const copy = { ...prev };
+  //     copy.itinerary[dayIdx].schedule[actIdx][field] = value;
+  //     return copy;
+  //   });
+  
+  // };
+  // make sure to sort by time after updating time field
   const updateActivity = (dayIdx: number, actIdx: number, field: string, value: string) => {
     setEditedSchedule((prev: any) => {
       const copy = { ...prev };
       copy.itinerary[dayIdx].schedule[actIdx][field] = value;
       return copy;
     });
-  };
-
-  const handleDragEnd = ({ data }: { data: any[] }) => {
-    setEditedSchedule((prev: any) => {
-      const copy = { ...prev };
-      const currentSchedule = copy.itinerary[selectedDayIndex].schedule;
-
-      // 1. Keep the "original time slots" in order (e.g. 09:00, 10:00, 11:00)
-      const originalTimes = currentSchedule.map((item: any) => item.time);
-
-      // 2. Map the dragged activity data with the original times
-      // This ensures moved items get the correct time slots
-      const updatedData = data.map((item, index) => ({
-        ...item,
-        time: originalTimes[index], 
-      }));
-
-      copy.itinerary[selectedDayIndex].schedule = updatedData;
-      return copy;
-    });
+  
   };
 
   const confirmPlan = async () => {
