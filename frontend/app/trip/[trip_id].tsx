@@ -60,6 +60,8 @@ export default function Hometrip() {
     const dailyRef = useRef<DailyPlanTabsHandle>(null);
     const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]); 
     
+    const [refreshKey, setRefreshKey] = useState(Date.now());
+
 
     useFocusEffect(
       useCallback(() => {
@@ -70,10 +72,13 @@ export default function Hometrip() {
             if (!token) return;
 
             const res = await axios.get(`${API_URL}/trip_plan/${trip_id}`, {
-              headers: { Authorization: `Bearer ${token}` },
+              headers: { Authorization: `Bearer ${token}`,'Cache-Control': 'no-cache' },
               timeout: 10000,
+              params: { t: new Date().getTime() },
             });
             setTrip(res.data);
+
+            setRefreshKey(Date.now());
           } catch (err: any) {
             if (err.response) {
               console.error('Error fetching trip:', err);
@@ -164,6 +169,7 @@ export default function Hometrip() {
                 
               >
               <DailyPlanTabs
+                    key={refreshKey}
                     startDate={trip.start_plan_date}
                     endDate={trip.end_plan_date}
                     planId={trip.plan_id}                 // << ส่งแผนที่ใช้งานจริงเข้าไปตรงๆ

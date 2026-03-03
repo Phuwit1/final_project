@@ -19,6 +19,7 @@ import LottieView from 'lottie-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ApproveAnimation from '@/components/ui/Alert/ApproveAnimation'; // แก้ Path ให้ตรงกับที่คุณเซฟ
 import WrongAnimation from '@/components/ui/Alert/WrongAnimation';
+import { da } from 'date-fns/locale';
 //import '@/dotenv/config';
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || 'AIzaSyA73tpAfskui7aqX9GXabfGLU0OZ5HLC-U';
@@ -104,11 +105,30 @@ export default function EditSchedule() {
   // make sure to sort by time after updating time field
   const updateActivity = (dayIdx: number, actIdx: number, field: string, value: string) => {
     setEditedSchedule((prev: any) => {
-      const copy = { ...prev };
-      copy.itinerary[dayIdx].schedule[actIdx][field] = value;
-      return copy;
+      // 1. Create a deep-ish copy of the specific day's schedule to avoid direct state mutation
+      const updatedItinerary = [...prev.itinerary];
+      const updatedSchedule = [...updatedItinerary[dayIdx].schedule];
+      
+      // 2. Update the specific field
+      updatedSchedule[actIdx] = { ...updatedSchedule[actIdx], [field]: value };
+
+      // 3. If the time was updated, sort the array by time
+      if (field === "time") {
+        updatedSchedule.sort((a, b) => {
+          // Handle missing times just in case
+          if (!a.time) return 1;
+          if (!b.time) return -1;
+          
+          // "HH:mm" format sorts perfectly alphabetically
+          return a.time.localeCompare(b.time); 
+        });
+      }
+
+      // 4. Put the sorted schedule back into the itinerary
+      updatedItinerary[dayIdx] = { ...updatedItinerary[dayIdx], schedule: updatedSchedule };
+
+      return { ...prev, itinerary: updatedItinerary };
     });
-  
   };
 
   const confirmPlan = async () => {
@@ -123,6 +143,20 @@ export default function EditSchedule() {
         { plan_id: planId, payload: editedSchedule }, 
         { headers }
       );
+
+      const itinerary = editedSchedule.itinerary;
+      if (itinerary && itinerary.length > 0) {
+        // หาวันที่ของวันสุดท้ายในทริป
+        const newEndDate = itinerary[itinerary.length - 1].date; 
+        console.log("New end date:", newEndDate);
+        await axios.put(`${API_URL}/trip_plan/${planId}`, 
+          { 
+            end_plan_date: dayjs(newEndDate).format('YYYY-MM-DD'), // ส่งไปแค่วันที่สิ้นสุดทริปอันใหม่
+            day_of_trip: dayjs(newEndDate).diff(dayjs(schedule.start_plan_date), 'day') + 1 // คำนวณจำนวนวันใหม่
+          }, 
+          { headers }
+        );
+      }
 
       showCustomAlert("Success!", "Changes saved successfully", true, () => {
         router.back();
@@ -250,6 +284,37 @@ export default function EditSchedule() {
     ]);
   };
 
+  const handleAddDay = () => {
+    setEditedSchedule((prev: any) => {
+      const copy = JSON.parse(JSON.stringify(prev)); // Deep copy เพื่อป้องกันปัญหา State ผูกกัน
+      const itinerary = copy.itinerary;
+
+      if (!itinerary || itinerary.length === 0) return copy;
+
+      // หาวันสุดท้ายในทริป
+      const lastDayObj = itinerary[itinerary.length - 1];
+      
+      /// ✅ ดึงเฉพาะตัวเลขออกมาจาก String แล้วบวก 1 (ใช้ Regex เผื่อกรณีติดคำว่า "Day ")
+      const lastDayNumber = parseInt(String(lastDayObj.day).replace(/\D/g, ''), 10) || itinerary.length;
+      const nextDayStr = String(lastDayNumber + 1);
+
+      // สร้างข้อมูลวันใหม่
+      const newDay = {
+        day: `Day ${nextDayStr}`, // คืนค่ากลับไปเป็น String เช่น "Day 2", "Day 3"
+        date: dayjs(lastDayObj.date).add(1, 'day').format('YYYY-MM-DD'), // บวกเพิ่ม 1 วัน
+        schedule: [] // ให้ตารางเวลาว่างเปล่าสำหรับวันใหม่
+      };
+
+      // นำวันใหม่ไปต่อท้าย
+      copy.itinerary.push(newDay);
+      
+      return copy;
+    });
+
+    // (Option) เลื่อนให้ UI ไปโฟกัสที่วันใหม่ล่าสุดที่เพิ่งกดเพิ่ม
+    setSelectedDayIndex(editedSchedule.itinerary.length); 
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
@@ -345,6 +410,12 @@ export default function EditSchedule() {
                 </TouchableOpacity>
               );
             })}
+            <TouchableOpacity 
+              style={styles.addButton} 
+              onPress={handleAddDay}
+            >
+              <Text style={styles.addButtonText}>+ Add</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
 
