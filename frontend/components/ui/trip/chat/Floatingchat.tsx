@@ -169,173 +169,11 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
     await calculateRoute();
   };
 
-  const calculateRoute = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    setRouteInfo(null);
-
-    try {
-      // ==========================================
-      // 🚧 MOCK DATA MODE (จำลองข้อมูลเพื่อทำ UI) 🚧
-      // ==========================================
-      
-      // 1. จำลองเวลาโหลด 1.5 วินาทีให้ดูสมจริง
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // 2. Mock ข้อมูลสถานที่เป้าหมาย (ให้ UI ส่วนบนแสดงผลได้)
-      setNextActivity({
-        time: '10:00',
-        activity: 'Osaka Castle',
-        need_location: true,
-        specific_location_name: 'Osaka Castle (ปราสาทโอซาก้า)',
-        lat: 34.6872571,
-        lng: 135.5258546,
-      });
-
-      // 3. Mock ข้อมูลเส้นทางทั้ง 5 แบบจาก Routing.md
-      const mockRouteData = [
-          {
-              "title": "🚇 Option 1: Quickest Route (⏱ 33 min, 🔁 1 transfer)",
-              "detail": [
-                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
-                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 6, Transfer time 3 min)",
-                  "🚇 Osaka Metro Midosuji Line: Honmachi → Umeda (4 min, 2.2 km, Get off at station 2)",
-                  "🚶 Walk from Umeda Station (Exit 5) to Goal (13 min, 1.03 km)"
-              ],
-              "fare": "💴 Total Fare: ~¥240",
-              "distance": "📏 Distance: 5.25 km"
-          },
-          {
-              "title": "🚶 Option 2: All Walking & Subway (⏱ 36 min, 🔁 0 transfers)",
-              "detail": [
-                  "🚶 Walk from Start to Tanimachi 4-chome Station (6 min, 497 m, Exit 2, Line T23)",
-                  "🚇 Osaka Metro Tanimachi Line: Tanimachi 4-chome → Higashi Umeda (7 min, 3.9 km, Get off at station 1)",
-                  "🚶 Walk from Higashi Umeda Station (Exit 1) to Goal (20 min, 1.35 km)"
-              ],
-              "fare": "💴 Total Fare: ~¥240",
-              "distance": "📏 Distance: 5.75 km"
-          },
-          {
-              "title": "🚇 Option 3: Two Metro Lines (⏱ 37 min, 🔁 1 transfer)",
-              "detail": [
-                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
-                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 1, Transfer time 4 min)",
-                  "🚇 Osaka Metro Yotsubashi Line: Honmachi → Nishi Umeda (4 min, 2.2 km, Get off at station 1)",
-                  "🚶 Walk from Nishi Umeda Station (Exit 5) to Goal (17 min, 1.13 km)"
-              ],
-              "fare": "💴 Total Fare: ~¥240",
-              "distance": "📏 Distance: 5.35 km"
-          },
-          {
-              "title": "🚃 Option 4: Metro & JR Line (⏱ 41 min, 🔁 1 transfer)",
-              "detail": [
-                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
-                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Morinomiya (2 min, 1.3 km, Get off at station 1, Transfer time 3 min)",
-                  "🚆 JR Osaka Loop Line: Morinomiya → Osaka Station (12 min, 5.9 km, Get off at station front side)",
-                  "🚶 Walk from Osaka Station (Umekita Underground Exit) to Goal (14 min, 924 m)"
-              ],
-              "fare": "💴 Total Fare: ~¥370",
-              "distance": "📏 Distance: 8.45 km"
-          },
-          {
-              "title": "🚃 Option 5: Metro & Hankyu Line (⏱ 42 min, 🔁 2 transfers)",
-              "detail": [
-                  "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
-                  "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 6, Transfer time 3 min)",
-                  "🚇 Osaka Metro Midosuji Line: Honmachi → Umeda (4 min, 2.2 km, Get off at stations 2 and 4)",
-                  "🚶 Walk from Umeda Station to Osaka Umeda Hankyu Line (4 min, 0 m)",
-                  "🚆 Hankyu Kobe Main Line: Osaka Umeda → Nakatsu (2 min, 900 m, Get off at station back side)",
-                  "🚶 Walk from Nakatsu Station to Goal (11 min, 756 m)"
-              ],
-              "fare": "💴 Total Fare: ~¥410",
-              "distance": "📏 Distance: 5.88 km"
-          }
-      ];
-
-      setRouteInfo(mockRouteData);
-
-
-      // 1. ขอ Permission และหาตำแหน่งปัจจุบัน
-    //   const { status } = await Location.requestForegroundPermissionsAsync();
-    //   if (status !== 'granted') {
-    //     throw new Error('Permission to access location was denied');
-    //   }
-
-    //   const currentLocation = await Location.getCurrentPositionAsync({
-    //     accuracy: Location.Accuracy.Balanced,
-    //   });
-    //   const origin = `${currentLocation.coords.latitude},${currentLocation.coords.longitude}`;
-
-    //   // 2. ดึงข้อมูล Itinerary (Plan)
-    //   const token = await AsyncStorage.getItem('access_token');
-    //   const res = await axios.get(`${apiBaseUrl}/trip_schedule/${planId}`, {
-    //     headers: { Authorization: `Bearer ${token}` }
-    //   });
-
-    //   const itineraryData = res.data?.payload?.itinerary;
-    //   if (!itineraryData || !Array.isArray(itineraryData)) {
-    //     throw new Error('ไม่พบข้อมูลตารางการเดินทาง');
-    //   }
-
-    //   // 3. หา Destination (กิจกรรมถัดไปที่มี Location)
-    //   const target = findNextLocation(itineraryData);
-      
-    //   if (!target) {
-    //     throw new Error('ไม่พบกิจกรรมถัดไปที่มีสถานที่ระบุไว้');
-    //   }
-
-    //   setNextActivity(target);
-
-    //   // 4. เรียก API Route Summarize
-    //   const destination = `${target.lat},${target.lng}`;
-    //   console.log(`Routing: ${origin} -> ${destination} (${target.activity})`);
-
-    //   const route = {
-    //     start : origin,
-    //     goal : destination,
-    //     start_time : dayjs().format('YYYY-MM-DDTHH:mm:ss') 
-    //   }
-
-    //  const routeRawRes = await axios.post(`${apiBaseUrl}/route`,
-    //   route,
-    //   {
-    //     headers: { Authorization: `Bearer ${token}` }
-    //   }
-    // );
-      
-    //   if (!routeRawRes.data || routeRawRes.data.error) {
-    //       throw new Error('ไม่พบเส้นทาง หรือ API มีปัญหา');
-    //   }
-      
-    //   // 3. ✅ ส่งผลลัพธ์ที่ได้ไปให้ AI สรุป (POST /route/summarize)
-    //   const summarizeRes = await axios.post(`${apiBaseUrl}/route/summarize`, 
-    //     { route: routeRawRes.data },
-    //     { headers: { Authorization: `Bearer ${token}` } }
-    //   );
-
-    //   setRouteInfo(summarizeRes.data);
-
-    } catch (err: any) {
-      console.error("Route Error:", err);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced, // ลดความแม่นยำลงมาที่ระดับกลาง (สำคัญมากสำหรับ Emulator)
-        });
-
-      console.log("พิกัดที่ได้:", location.coords);
-      console.log("Location Permission Status:", status);
-      if (status !== 'granted') {
-        throw new Error('Permission to access location was denied');
-      }
-      setErrorMsg(err.message || "เกิดข้อผิดพลาดในการคำนวณเส้นทาง");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const findNextLocation = (itinerary: ItineraryDay[]): ScheduleItem | null => {
+    const findNextLocation = (itinerary: ItineraryDay[]): ScheduleItem | null => {
     const now = dayjs(); 
     let allActivities: (ScheduleItem & { fullDateTime: dayjs.Dayjs })[] = [];
+    
+
 
     itinerary.forEach(day => {
       day.schedule.forEach(item => {
@@ -348,13 +186,186 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
 
     allActivities.sort((a, b) => a.fullDateTime.diff(b.fullDateTime));
 
+    console.log("All activities with datetime:", allActivities.map(a => ({
+      activity: a.activity,
+      time: a.fullDateTime.format('YYYY-MM-DD HH:mm'),
+    })));
+
     for (const item of allActivities) {
+      console.log(`Checking activity: ${item.activity} at ${item.fullDateTime.format('YYYY-MM-DD HH:mm')}`);
       if (item.fullDateTime.isAfter(now.subtract(10, 'minute')) && item.need_location && item.lat && item.lng) {
+
         return item;
       }
     }
     return null;
   };
+
+  const calculateRoute = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    setRouteInfo(null);
+
+    try {
+      // // ==========================================
+      // // 🚧 MOCK DATA MODE (จำลองข้อมูลเพื่อทำ UI) 🚧
+      // // ==========================================
+      
+      // // 1. จำลองเวลาโหลด 1.5 วินาทีให้ดูสมจริง
+      // await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // // 2. Mock ข้อมูลสถานที่เป้าหมาย (ให้ UI ส่วนบนแสดงผลได้)
+      // setNextActivity({
+      //   time: '10:00',
+      //   activity: 'Osaka Castle',
+      //   need_location: true,
+      //   specific_location_name: 'Osaka Castle (ปราสาทโอซาก้า)',
+      //   lat: 34.6872571,
+      //   lng: 135.5258546,
+      // });
+
+      // // 3. Mock ข้อมูลเส้นทางทั้ง 5 แบบจาก Routing.md
+      // const mockRouteData = [
+      //     {
+      //         "title": "🚇 Option 1: Quickest Route (⏱ 33 min, 🔁 1 transfer)",
+      //         "detail": [
+      //             "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+      //             "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 6, Transfer time 3 min)",
+      //             "🚇 Osaka Metro Midosuji Line: Honmachi → Umeda (4 min, 2.2 km, Get off at station 2)",
+      //             "🚶 Walk from Umeda Station (Exit 5) to Goal (13 min, 1.03 km)"
+      //         ],
+      //         "fare": "💴 Total Fare: ~¥240",
+      //         "distance": "📏 Distance: 5.25 km"
+      //     },
+      //     {
+      //         "title": "🚶 Option 2: All Walking & Subway (⏱ 36 min, 🔁 0 transfers)",
+      //         "detail": [
+      //             "🚶 Walk from Start to Tanimachi 4-chome Station (6 min, 497 m, Exit 2, Line T23)",
+      //             "🚇 Osaka Metro Tanimachi Line: Tanimachi 4-chome → Higashi Umeda (7 min, 3.9 km, Get off at station 1)",
+      //             "🚶 Walk from Higashi Umeda Station (Exit 1) to Goal (20 min, 1.35 km)"
+      //         ],
+      //         "fare": "💴 Total Fare: ~¥240",
+      //         "distance": "📏 Distance: 5.75 km"
+      //     },
+      //     {
+      //         "title": "🚇 Option 3: Two Metro Lines (⏱ 37 min, 🔁 1 transfer)",
+      //         "detail": [
+      //             "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+      //             "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 1, Transfer time 4 min)",
+      //             "🚇 Osaka Metro Yotsubashi Line: Honmachi → Nishi Umeda (4 min, 2.2 km, Get off at station 1)",
+      //             "🚶 Walk from Nishi Umeda Station (Exit 5) to Goal (17 min, 1.13 km)"
+      //         ],
+      //         "fare": "💴 Total Fare: ~¥240",
+      //         "distance": "📏 Distance: 5.35 km"
+      //     },
+      //     {
+      //         "title": "🚃 Option 4: Metro & JR Line (⏱ 41 min, 🔁 1 transfer)",
+      //         "detail": [
+      //             "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+      //             "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Morinomiya (2 min, 1.3 km, Get off at station 1, Transfer time 3 min)",
+      //             "🚆 JR Osaka Loop Line: Morinomiya → Osaka Station (12 min, 5.9 km, Get off at station front side)",
+      //             "🚶 Walk from Osaka Station (Umekita Underground Exit) to Goal (14 min, 924 m)"
+      //         ],
+      //         "fare": "💴 Total Fare: ~¥370",
+      //         "distance": "📏 Distance: 8.45 km"
+      //     },
+      //     {
+      //         "title": "🚃 Option 5: Metro & Hankyu Line (⏱ 42 min, 🔁 2 transfers)",
+      //         "detail": [
+      //             "🚶 Walk from Start to Tanimachi 4-chome Station (5 min, 328 m, Exit 9, Line C18)",
+      //             "🚇 Osaka Metro Chuo Line: Tanimachi 4-chome → Honmachi (3 min, 1.7 km, Get off at station 6, Transfer time 3 min)",
+      //             "🚇 Osaka Metro Midosuji Line: Honmachi → Umeda (4 min, 2.2 km, Get off at stations 2 and 4)",
+      //             "🚶 Walk from Umeda Station to Osaka Umeda Hankyu Line (4 min, 0 m)",
+      //             "🚆 Hankyu Kobe Main Line: Osaka Umeda → Nakatsu (2 min, 900 m, Get off at station back side)",
+      //             "🚶 Walk from Nakatsu Station to Goal (11 min, 756 m)"
+      //         ],
+      //         "fare": "💴 Total Fare: ~¥410",
+      //         "distance": "📏 Distance: 5.88 km"
+      //     }
+      // ];
+
+      // setRouteInfo(mockRouteData);
+
+
+      // 1. ขอ Permission และหาตำแหน่งปัจจุบัน
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        throw new Error('Permission to access location was denied');
+      }
+      console.log("1");
+
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      console.log("2");
+
+      const origin = `${currentLocation.coords.latitude},${currentLocation.coords.longitude}`;
+
+      // 2. ดึงข้อมูล Itinerary (Plan)
+      const token = await AsyncStorage.getItem('access_token');
+      const res = await axios.get(`${apiBaseUrl}/trip_schedule/${planId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const itineraryData = res.data?.payload?.itinerary;
+      if (!itineraryData || !Array.isArray(itineraryData)) {
+        throw new Error('ไม่พบข้อมูลตารางการเดินทาง');
+      }
+
+      // 3. หา Destination (กิจกรรมถัดไปที่มี Location)
+      const target = findNextLocation(itineraryData);
+      
+      if (!target) {
+        throw new Error('ไม่พบกิจกรรมถัดไปที่มีสถานที่ระบุไว้');
+      }
+
+      setNextActivity(target);
+
+      // 4. เรียก API Route Summarize
+      const destination = `${target.lat},${target.lng}`;
+      console.log(`Routing: ${origin} -> ${destination} (${target.activity})`);
+
+      const route = {
+        start : origin,
+        goal : destination,
+        start_time : dayjs().format('YYYY-MM-DDTHH:mm:ss') 
+      }
+
+     const routeRawRes = await axios.post(`${apiBaseUrl}/route`,
+      route,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+      
+      if (!routeRawRes.data || routeRawRes.data.error) {
+          throw new Error('ไม่พบเส้นทาง หรือ API มีปัญหา');
+      }
+      
+      // 3. ✅ ส่งผลลัพธ์ที่ได้ไปให้ AI สรุป (POST /route/summarize)
+      const summarizeRes = await axios.post(`${apiBaseUrl}/route/summarize`, 
+        { route: routeRawRes.data },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setRouteInfo(summarizeRes.data);
+
+    } catch (err: any) {
+      console.log("มัน eror ละเด้อ");
+      console.error("รายละเอียด Error:", err.response?.data || err.message || err);
+      // console.error("Route Error:", err);
+      const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced, // ลดความแม่นยำลงมาที่ระดับกลาง (สำคัญมากสำหรับ Emulator)
+        });
+      console.log("พิกัดที่ได้:", location.coords);
+      
+      setErrorMsg(err.message || "เกิดข้อผิดพลาดในการคำนวณเส้นทาง");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
 
   return (
     <View style={styles.container}>
