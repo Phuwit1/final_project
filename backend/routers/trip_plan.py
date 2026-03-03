@@ -103,6 +103,7 @@ async def update_trip_plan(plan_id: int, trip_plan: TripPlanUpdate, db: Prisma =
     try:
         # ดึงเฉพาะค่าที่ส่งมา (exclude_unset=True) เพื่อไม่ให้ค่าอื่นโดนทับด้วย null
         data = trip_plan.model_dump(exclude_unset=True)
+        print(trip_plan)
         print(f"📦 Data going to DB: {data}")
         updated_plan = await db.tripplan.update(
             where={"plan_id": plan_id},
