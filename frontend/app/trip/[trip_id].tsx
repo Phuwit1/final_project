@@ -39,7 +39,7 @@ const formatTripDateRange = (startStr: string, endStr: string): string => {
   const end = dayjs(endStr);
   const startDate = start.date();
   const endDate = end.date();
-  const monthName = start.format('MMM');
+  const monthName = end.format('MMM');
   const year = (start.year() + 543) % 100;
   return `${startDate}-${endDate} ${monthName} ${year}`;
 };
@@ -175,14 +175,7 @@ export default function Hometrip() {
               {netStatus && (
                 <FloatingChat
                   apiBaseUrl={API_BASE}
-                  planId={trip.plan_id}   
-                  dayCount={totalDays}
-                  startDate={trip.start_plan_date}
-                  endDate={trip.end_plan_date}
-                  onPatchItinerary={(mappedPlans) => setDailyPlans(mappedPlans)}
-                  onNavigateToDay={(index) => dailyRef.current?.setActiveDay(index)}
-                  fabBottom={500}     // 👈 ระยะฐาน (จะบวก safe area ให้อัตโนมัติ)
-                  fabRight={16}
+                  planId={trip.plan_id}
                 />
               )}
               
