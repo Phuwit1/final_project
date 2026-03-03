@@ -238,21 +238,6 @@ const onCreateWithAI = async () => {
       image: coverImageUrl,
     };
     console.log("SENDING PAYLOAD:", createPayload);
-    
-    const created = await axios.post(
-      `${API_URL}/trip_plan`,createPayload,{ headers, timeout: 30000 }
-    );
-
-    const planId: number = Number(created.data?.plan_id);
-    const tripIdForRoute: string = String(
-      created.data?.trip_id ?? created.data?.plan_id
-    );
-
-    if (!Number.isFinite(planId)) {
-      Alert.alert('Create Trip error', 'Not Found plan_id in response');
-      setLoading(false);
-      return;
-    }
 
     const llmBody = {
       start_date: toDDMMYYYY_fromDate(startDate),
@@ -265,13 +250,29 @@ const onCreateWithAI = async () => {
 
     const llm = await axios.post(`${API_URL}/llm/`, llmBody, {
       headers,
-      timeout: 45000,
     });
 
     const data: any = typeof llm.data === 'string'
       ? JSON.parse(llm.data)
       : llm.data;
 
+    const created = await axios.post(
+      `${API_URL}/trip_plan`,createPayload,{ headers }
+    );
+
+    console.log("Created response:", created.data);
+    
+
+    const planId: number = Number(created.data?.plan_id);
+    const tripIdForRoute: string = String(
+      created.data?.trip_id ?? created.data?.plan_id
+    );
+
+    if (!Number.isFinite(planId)) {
+      Alert.alert('Create Trip error', 'Not Found plan_id in response');
+      setLoading(false);
+      return;
+    }
 
     await axios.post(
       `${API_URL}/trip_schedule`,
