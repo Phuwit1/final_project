@@ -50,7 +50,7 @@ const formatTripDateRange = (startStr: string, endStr: string): string => {
 
   const startDate = start.date(); // วันที่ เช่น 6
   const endDate = end.date();     // วันที่ เช่น 10
-  const monthName = start.format('MMM'); // เดือน ย่อ เช่น ก.ค.
+  const monthName = end.format('MMM'); // เดือน ย่อ เช่น ก.ค.
   const year = toThaiYear(start) % 100;  // ปี 65 (เอา 2 หลักหลัง)
 
   return `${startDate}-${endDate} ${monthName} ${year}`;
