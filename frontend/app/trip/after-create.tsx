@@ -240,7 +240,7 @@ const onCreateWithAI = async () => {
     console.log("SENDING PAYLOAD:", createPayload);
     
     const created = await axios.post(
-      `${API_URL}/trip_plan`,createPayload,{ headers, timeout: 30000 }
+      `${API_URL}/trip_plan`,createPayload,{ headers }
     );
 
     const planId: number = Number(created.data?.plan_id);
@@ -265,7 +265,6 @@ const onCreateWithAI = async () => {
 
     const llm = await axios.post(`${API_URL}/llm/`, llmBody, {
       headers,
-      timeout: 45000,
     });
 
     const data: any = typeof llm.data === 'string'
