@@ -295,12 +295,11 @@ export default function FloatingChat({ planId, apiBaseUrl }: FloatingChatProps) 
       console.log("1");
 
       const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
       });
       console.log("2");
 
       const origin = `${currentLocation.coords.latitude},${currentLocation.coords.longitude}`;
-
       // 2. ดึงข้อมูล Itinerary (Plan)
       const token = await AsyncStorage.getItem('access_token');
       const res = await axios.get(`${apiBaseUrl}/trip_schedule/${planId}`, {
