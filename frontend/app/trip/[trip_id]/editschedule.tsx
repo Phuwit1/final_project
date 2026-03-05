@@ -315,6 +315,60 @@ export default function EditSchedule() {
     setSelectedDayIndex(editedSchedule.itinerary.length); 
   };
 
+  const handleDeleteDay = (dayIndexToDelete: number) => {
+    // 1. ตรวจสอบว่ามีอย่างน้อย 1 วัน ห้ามลบจนหมด
+    if (editedSchedule.itinerary.length <= 1) {
+      showCustomAlert("Action Denied", "Your trip must have at least one day.", false);
+      return;
+    }
+
+    Alert.alert(
+      "Delete Day",
+      `Are you sure you want to delete ${editedSchedule.itinerary[dayIndexToDelete].day}? All activities will be lost.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: () => {
+            setEditedSchedule((prev: any) => {
+              // Deep copy เพื่อความปลอดภัย
+              const copy = JSON.parse(JSON.stringify(prev)); 
+              
+              // 1. ลบวันที่ต้องการออก
+              copy.itinerary.splice(dayIndexToDelete, 1);
+
+              // 2. รันหมายเลข Day ใหม่ (Day 1, Day 2, ...) และปรับวันที่ให้เรียงต่อกัน
+              const baseDate = dayjs(copy.itinerary[0].date); // ใช้วันแรกสุดเป็นตัวตั้งต้น
+              
+              copy.itinerary = copy.itinerary.map((dayObj: any, idx: number) => {
+                return {
+                  ...dayObj,
+                  day: `Day ${idx + 1}`, // อัปเดตชื่อเป็น Day 1, Day 2 ใหม่
+                  date: baseDate.add(idx, 'day').format('YYYY-MM-DD') // เลื่อนวันที่ให้ติดกัน
+                };
+              });
+
+              return copy;
+            });
+
+            // 3. จัดการแท็บที่กำลังเลือกอยู่ (selectedDayIndex)
+            setSelectedDayIndex((prevSelected) => {
+              if (dayIndexToDelete === prevSelected) {
+                // ถ้าลบแท็บที่กำลังดูอยู่ ให้ถอยกลับไป 1 วัน (หรือไม่ต่ำกว่า 0)
+                return Math.max(0, prevSelected - 1);
+              } else if (dayIndexToDelete < prevSelected) {
+                // ถ้าลบแท็บที่อยู่ก่อนหน้าแท็บที่ดูอยู่ ต้องลด index ลง 1 เพื่อให้ยังอยู่ที่เดิม
+                return prevSelected - 1;
+              }
+              return prevSelected;
+            });
+          }
+        }
+      ]
+    );
+  };
+  
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
@@ -400,16 +454,31 @@ export default function EditSchedule() {
             {editedSchedule.itinerary.map((item: any, index: number) => {
               const isSelected = selectedDayIndex === index;
               return (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.dayChip, isSelected && styles.selectedDayChip]}
-                  onPress={() => setSelectedDayIndex(index)}
-                >
-                  <Text style={[styles.dayText, isSelected && styles.selectedDayText]}>{item.day}</Text>
-                  <Text style={[styles.dateText, isSelected && styles.selectedDateText]}>{dayjs(item.date).format('D MMM')}</Text>
-                </TouchableOpacity>
+                // สร้าง View ครอบเพื่อกำหนดให้อ้างอิงตำแหน่ง (relative)
+                <View key={index} style={styles.dayChipWrapper}> 
+                  
+                  {/* ปุ่มหลักสำหรับเลือกวัน */}
+                  <TouchableOpacity
+                    style={[styles.dayChip, isSelected && styles.selectedDayChip]}
+                    onPress={() => setSelectedDayIndex(index)}
+                  >
+                    <Text style={[styles.dayText, isSelected && styles.selectedDayText]}>{item.day}</Text>
+                    <Text style={[styles.dateText, isSelected && styles.selectedDateText]}>{dayjs(item.date).format('D MMM')}</Text>
+                  </TouchableOpacity>
+
+                  {/* ปุ่มสำหรับลบ (มุมขวาบน) */}
+                  <TouchableOpacity 
+                    style={styles.deleteBadge}
+                    onPress={() => handleDeleteDay(index)} // อย่าลืมสร้างฟังก์ชันนี้นะครับ
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteBadgeText}>✕</Text>
+                  </TouchableOpacity>
+
+                </View>
               );
             })}
+            
             <TouchableOpacity 
               style={styles.addButton} 
               onPress={handleAddDay}
@@ -777,5 +846,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     zIndex: 9999, // ให้ทับทุกอย่างบนหน้าจอ
     elevation: 9999, // สำหรับ Android
+  },
+  dayChipWrapper: {
+    position: 'relative',
+    marginRight: 10, // ย้าย margin มาไว้ที่ wrapper แทน (ถ้ามีอยู่ใน dayChip เดิม)
+    // padding: 5, // อาจจะเพิ่ม padding ถ้ารู้สึกว่าปุ่มลบมันชิดขอบจอเกินไป
+  },
+  deleteBadge: {
+    position: 'absolute',
+    top: 0,    
+    right: -4,
+    backgroundColor: '#FF3B30', 
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10, 
+    elevation: 3, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+  },
+  deleteBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+    lineHeight: 12,
   },
 });
